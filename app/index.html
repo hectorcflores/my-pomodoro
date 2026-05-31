@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Focus Sessions</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <style>
+    :root {
+      --bg: #fff;
+      --ink: #000;
+      --muted: #555;
+      --line: #000;
+      --surface: #fff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    button {
+      min-height: 54px;
+      border: 0;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    .app {
+      display: grid;
+      gap: 24px;
+      width: min(720px, calc(100vw - 28px));
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .timer {
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+      padding: 10px 0 2px;
+    }
+
+    .time {
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(74px, 22vw, 104px);
+      font-weight: 850;
+      line-height: 0.92;
+      letter-spacing: 0;
+    }
+
+    .state {
+      min-height: 21px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .primary {
+      background: #000;
+      color: #fff;
+    }
+
+    .primary:hover {
+      background: #222;
+    }
+
+    .secondary {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .secondary:hover {
+      background: #f2f2f2;
+    }
+
+    .small-actions {
+      display: grid;
+    }
+
+    .small-actions button {
+      min-height: 44px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .heatmap {
+      display: grid;
+      gap: 10px;
+      padding-top: 2px;
+    }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: 48px repeat(24, minmax(0, 1fr));
+      gap: 4px;
+      align-items: center;
+    }
+
+    .day-label {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hour {
+      aspect-ratio: 1;
+      min-width: 0;
+      border: 1px solid #000;
+      background: #fff;
+    }
+
+    .hour.level-1 {
+      background: #d9d9d9;
+    }
+
+    .hour.level-2 {
+      background: #a6a6a6;
+    }
+
+    .hour.level-3 {
+      background: #595959;
+    }
+
+    .hour.level-4 {
+      background: #000;
+    }
+
+    .hour-labels {
+      display: grid;
+      grid-template-columns: 48px repeat(4, 1fr);
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hour-labels span:nth-child(3),
+    .hour-labels span:nth-child(4) {
+      text-align: center;
+    }
+
+    .hour-labels span:last-child {
+      text-align: right;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="Focus session timer">
+    <section class="timer">
+      <div class="state" id="state">0 sessions today</div>
+      <div class="time" id="time">30:00</div>
+    </section>
+
+    <section class="actions">
+      <button class="primary" id="mainButton" type="button">Start</button>
+      <div class="small-actions">
+        <button class="secondary" id="undoButton" type="button">Undo</button>
+      </div>
+    </section>
+
+    <section class="heatmap" aria-label="Focus sessions by hour">
+      <h2 class="visually-hidden">Global history by weekday and hour</h2>
+      <div class="day-grid" id="hourGrid"></div>
+      <div class="hour-labels" aria-hidden="true">
+        <span></span>
+        <span>12a</span>
+        <span>6a</span>
+        <span>12p</span>
+        <span>6p</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const storageKey = "focus-sessions.v1";
+    const syncConfigStorageKey = "focus-sessions.sync-config.v1";
+    const clientIdStorageKey = "focus-sessions.client-id.v1";
+    const defaultSessionSeconds = 30 * 60;
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const urlSeconds = Number(params.get("seconds"));
+    const sessionSeconds = Number.isFinite(urlSeconds) && urlSeconds > 0 ? urlSeconds : defaultSessionSeconds;
+
+    const els = {
+      time: document.querySelector("#time"),
+      state: document.querySelector("#state"),
+      mainButton: document.querySelector("#mainButton"),
+      undoButton: document.querySelector("#undoButton"),
+      hourGrid: document.querySelector("#hourGrid")
+    };
+
+    let state = loadState();
+    let tick = null;
+    let syncConfig = null;
+
+    function todayKey(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function localStartOfTodayIso() {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    }
+
+    function loadState() {
+      const fallback = {
+        sessions: [],
+        activeSession: null
+      };
+
+      try {
+        const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        return {
+          sessions: Array.isArray(stored.sessions) ? stored.sessions : [],
+          activeSession: stored.activeSession || null
+        };
+      } catch {
+        return fallback;
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function loadSyncConfig() {
+      try {
+        return JSON.parse(localStorage.getItem(syncConfigStorageKey) || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function saveSyncConfig(config) {
+      localStorage.setItem(syncConfigStorageKey, JSON.stringify(config));
+    }
+
+    async function configureSyncFromUrl() {
+      const supabaseUrl = hashParams.get("sb_url") || params.get("sb_url");
+      const supabaseAnonKey = hashParams.get("sb_key") || params.get("sb_key");
+      const syncKey = hashParams.get("sync_key") || params.get("sync_key");
+
+      if (!supabaseUrl || !supabaseAnonKey || !syncKey) {
+        return loadSyncConfig();
+      }
+
+      const config = {
+        supabaseUrl: supabaseUrl.replace(/\/$/, ""),
+        supabaseAnonKey,
+        syncKeyHash: await sha256(syncKey)
+      };
+
+      saveSyncConfig(config);
+      window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+      return config;
+    }
+
+    async function sha256(value) {
+      const bytes = new TextEncoder().encode(value);
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    function createId() {
+      return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    }
+
+    function clientId() {
+      const existing = localStorage.getItem(clientIdStorageKey);
+      if (existing) return existing;
+      const next = createId();
+      localStorage.setItem(clientIdStorageKey, next);
+      return next;
+    }
+
+    function startSession() {
+      state.activeSession = {
+        id: createId(),
+        startedAt: new Date().toISOString(),
+        durationSeconds: sessionSeconds,
+        pausedRemainingSeconds: null
+      };
+      startTick();
+      render();
+      saveState();
+    }
+
+    function pauseSession() {
+      if (!state.activeSession) return;
+      state.activeSession.pausedRemainingSeconds = remainingSeconds();
+      stopTick();
+      render();
+      saveState();
+    }
+
+    function resumeSession() {
+      if (!state.activeSession) return;
+      const remaining = state.activeSession.pausedRemainingSeconds || sessionSeconds;
+      const elapsedSeconds = state.activeSession.durationSeconds - remaining;
+      state.activeSession.startedAt = new Date(Date.now() - elapsedSeconds * 1000).toISOString();
+      state.activeSession.pausedRemainingSeconds = null;
+      startTick();
+      render();
+      saveState();
+    }
+
+    function handleMainAction() {
+      if (!state.activeSession) {
+        startSession();
+        return;
+      }
+
+      if (state.activeSession.pausedRemainingSeconds !== null) {
+        resumeSession();
+      } else {
+        pauseSession();
+      }
+    }
+
+    function completeSession() {
+      if (!state.activeSession) return;
+      const now = new Date();
+      const session = {
+        id: state.activeSession.id,
+        date: todayKey(now),
+        startedAt: state.activeSession.startedAt,
+        completedAt: now.toISOString(),
+        durationSeconds: state.activeSession.durationSeconds,
+        clientId: clientId()
+      };
+      state.sessions.push(session);
+      state.activeSession = null;
+      stopTick();
+      render();
+      saveState();
+      createRemoteSession(session);
+    }
+
+    function undoLast() {
+      const today = todayKey();
+      const index = state.sessions.map((session) => session.date).lastIndexOf(today);
+      if (index >= 0) {
+        state.sessions.splice(index, 1);
+        render();
+        saveState();
+        undoRemoteSession();
+      }
+    }
+
+    function remainingSeconds() {
+      if (!state.activeSession) return sessionSeconds;
+      if (state.activeSession.pausedRemainingSeconds !== null) {
+        return state.activeSession.pausedRemainingSeconds;
+      }
+
+      const startedAt = new Date(state.activeSession.startedAt).getTime();
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      return Math.max(0, state.activeSession.durationSeconds - elapsed);
+    }
+
+    function settleExpiredSession() {
+      if (!state.activeSession || state.activeSession.pausedRemainingSeconds !== null) return;
+      if (remainingSeconds() === 0) {
+        completeSession();
+      }
+    }
+
+    function startTick() {
+      stopTick();
+      tick = setInterval(() => {
+        settleExpiredSession();
+        render();
+        saveState();
+      }, 1000);
+    }
+
+    function stopTick() {
+      if (tick) {
+        clearInterval(tick);
+        tick = null;
+      }
+    }
+
+    function sessionsToday() {
+      return state.sessions.filter((session) => session.date === todayKey());
+    }
+
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const remainder = seconds % 60;
+      return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+    }
+
+    function hourCounts(sessions) {
+      const counts = Array.from({ length: 24 }, () => 0);
+      sessions.forEach((session) => {
+        counts[new Date(session.completedAt).getHours()] += 1;
+      });
+      return counts;
+    }
+
+    function render() {
+      settleExpiredSession();
+      const today = sessionsToday();
+      const remaining = remainingSeconds();
+
+      els.time.textContent = formatTime(remaining);
+      els.state.textContent = `${today.length} ${today.length === 1 ? "session" : "sessions"} today`;
+      els.mainButton.textContent = buttonLabel();
+      els.undoButton.disabled = today.length === 0;
+      renderHeatmap();
+      document.title = state.activeSession && state.activeSession.pausedRemainingSeconds === null
+        ? `${formatTime(remaining)} - Focus Sessions`
+        : "Focus Sessions";
+    }
+
+    function buttonLabel() {
+      if (!state.activeSession) return "Start";
+      return state.activeSession.pausedRemainingSeconds !== null ? "Resume" : "Pause";
+    }
+
+    function renderHeatmap() {
+      const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+      els.hourGrid.innerHTML = days.map((day, dayIndex) => {
+        const weekdaySessions = state.sessions.filter((session) => {
+          const date = new Date(session.completedAt);
+          return ((date.getDay() + 6) % 7) === dayIndex;
+        });
+        const counts = hourCounts(weekdaySessions);
+        const cells = counts.map((count, hour) => {
+          const level = Math.min(count, 4);
+          const label = `${day} ${hour}:00, ${count} focus ${count === 1 ? "session" : "sessions"} in history`;
+          return `<div class="hour level-${level}" title="${label}" aria-label="${label}"></div>`;
+        }).join("");
+
+        return `<div class="day-label">${day}</div>${cells}`;
+      }).join("");
+    }
+
+    function isSyncEnabled() {
+      return Boolean(syncConfig && syncConfig.supabaseUrl && syncConfig.supabaseAnonKey && syncConfig.syncKeyHash);
+    }
+
+    async function supabaseRpc(functionName, body) {
+      if (!isSyncEnabled()) return null;
+
+      const response = await fetch(`${syncConfig.supabaseUrl}/rest/v1/rpc/${functionName}`, {
+        method: "POST",
+        headers: {
+          "apikey": syncConfig.supabaseAnonKey,
+          "Authorization": `Bearer ${syncConfig.supabaseAnonKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        throw new Error(`${functionName} failed: ${response.status}`);
+      }
+
+      return response.json();
+    }
+
+    function normalizeRemoteSession(session) {
+      const completedAt = session.completed_at || session.completedAt;
+      return {
+        id: session.id,
+        date: todayKey(new Date(completedAt)),
+        startedAt: session.started_at || session.startedAt,
+        completedAt,
+        durationSeconds: session.duration_seconds || session.durationSeconds,
+        clientId: session.client_id || session.clientId
+      };
+    }
+
+    async function loadRemoteSessions() {
+      if (!isSyncEnabled()) return;
+
+      try {
+        const sessions = await supabaseRpc("list_focus_sessions", {
+          p_sync_key_hash: syncConfig.syncKeyHash
+        });
+        state.sessions = sessions.map(normalizeRemoteSession);
+        saveState();
+        render();
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+
+    async function createRemoteSession(session) {
+      if (!isSyncEnabled()) return;
+
+      try {
+        await supabaseRpc("create_focus_session", {
+          p_sync_key_hash: syncConfig.syncKeyHash,
+          p_started_at: session.startedAt,
+          p_completed_at: session.completedAt,
+          p_duration_seconds: session.durationSeconds,
+          p_client_id: session.clientId
+        });
+        await loadRemoteSessions();
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+
+    async function undoRemoteSession() {
+      if (!isSyncEnabled()) return;
+
+      try {
+        await supabaseRpc("undo_latest_focus_session", {
+          p_sync_key_hash: syncConfig.syncKeyHash,
+          p_completed_after: localStartOfTodayIso()
+        });
+        await loadRemoteSessions();
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+
+    els.mainButton.addEventListener("click", handleMainAction);
+    els.undoButton.addEventListener("click", undoLast);
+
+    window.addEventListener("beforeunload", saveState);
+
+    async function init() {
+      syncConfig = await configureSyncFromUrl();
+
+      if (state.activeSession && state.activeSession.pausedRemainingSeconds === null) {
+        startTick();
+      }
+
+      render();
+      await loadRemoteSessions();
+    }
+
+    init();
+  </script>
+</body>
+</html>

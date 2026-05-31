@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Focus Sessions</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --ink: #000;
+      --muted: #555;
+      --line: #000;
+      --surface: #fff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    button {
+      min-height: 54px;
+      border: 0;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .app {
+      display: grid;
+      gap: 24px;
+      width: min(720px, calc(100vw - 28px));
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: none;
+    }
+
+    .today {
+      display: grid;
+      gap: 6px;
+      text-align: center;
+    }
+
+    .today .label {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .today .summary {
+      color: var(--ink);
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .today strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: clamp(56px, 10vw, 76px);
+      line-height: 1;
+    }
+
+    .timer {
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+      padding: 10px 0 2px;
+    }
+
+    .time {
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(74px, 22vw, 104px);
+      font-weight: 850;
+      line-height: 0.92;
+      letter-spacing: 0;
+    }
+
+    .state {
+      min-height: 21px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .primary {
+      background: #000;
+      color: #fff;
+    }
+
+    .primary:hover {
+      background: #222;
+    }
+
+    .secondary {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .secondary:hover {
+      background: #f2f2f2;
+    }
+
+    .small-actions {
+      display: grid;
+    }
+
+    .small-actions button {
+      min-height: 44px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .heatmap {
+      display: grid;
+      gap: 10px;
+      padding-top: 2px;
+    }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: 48px repeat(24, minmax(0, 1fr));
+      gap: 4px;
+      align-items: center;
+    }
+
+    .day-label {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hour {
+      aspect-ratio: 1;
+      min-width: 0;
+      border: 1px solid #000;
+      background: #fff;
+    }
+
+    .hour.level-1 {
+      background: #d9d9d9;
+    }
+
+    .hour.level-2 {
+      background: #a6a6a6;
+    }
+
+    .hour.level-3 {
+      background: #595959;
+    }
+
+    .hour.level-4 {
+      background: #000;
+    }
+
+    .hour-labels {
+      display: grid;
+      grid-template-columns: 48px repeat(4, 1fr);
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hour-labels span:nth-child(3),
+    .hour-labels span:nth-child(4) {
+      text-align: center;
+    }
+
+    .hour-labels span:last-child {
+      text-align: right;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="Minimal focus session logger">
+    <section class="timer">
+      <div class="state" id="state">0 sessions today</div>
+      <div class="time" id="time">25:00</div>
+    </section>
+
+    <section class="actions">
+      <button class="primary" id="mainButton" type="button">Start</button>
+      <div class="small-actions">
+        <button class="secondary" id="undoButton" type="button">Undo</button>
+      </div>
+    </section>
+
+    <section class="heatmap" aria-label="Focus sessions by hour">
+      <h2 class="visually-hidden">Global history by weekday and hour</h2>
+      <div class="day-grid" id="hourGrid"></div>
+      <div class="hour-labels" aria-hidden="true">
+        <span></span>
+        <span>12a</span>
+        <span>6a</span>
+        <span>12p</span>
+        <span>6p</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const storageKey = "my-pomodoro.minimal-focus-sessions";
+    const focusSeconds = 5;
+    const els = {
+      time: document.querySelector("#time"),
+      state: document.querySelector("#state"),
+      mainButton: document.querySelector("#mainButton"),
+      undoButton: document.querySelector("#undoButton"),
+      hourGrid: document.querySelector("#hourGrid")
+    };
+
+    const demoMode = true;
+    let state = loadState();
+    let tick = null;
+
+    function todayKey(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function loadState() {
+      const fallback = {
+        running: false,
+        remaining: focusSeconds,
+        logs: []
+      };
+
+      if (demoMode) {
+        return { ...fallback, logs: demoLogs() };
+      }
+
+      try {
+        return { ...fallback, ...JSON.parse(localStorage.getItem(storageKey) || "{}") };
+      } catch {
+        return fallback;
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function todayLogs() {
+      return state.logs.filter((log) => log.date === todayKey());
+    }
+
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const remainder = seconds % 60;
+      return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+    }
+
+    function hourCounts(logs) {
+      const counts = Array.from({ length: 24 }, () => 0);
+      logs.forEach((log) => {
+        counts[new Date(log.completedAt).getHours()] += 1;
+      });
+      return counts;
+    }
+
+    function dayLabel(date) {
+      if (todayKey(date) === todayKey()) return "Today";
+      return date.toLocaleDateString([], { weekday: "short" });
+    }
+
+    function demoLogs() {
+      const pattern = [
+        [[8, 2], [9, 4], [10, 1], [14, 3]],
+        [[9, 3], [11, 1], [14, 4], [15, 2], [16, 1]],
+        [[8, 1], [10, 2], [13, 3], [14, 4]],
+        [[9, 4], [11, 2], [15, 1]],
+        [[10, 1], [12, 3], [13, 4], [17, 2]],
+        [[8, 3], [9, 2], [14, 1], [15, 4], [16, 2]],
+        [[11, 1], [12, 2]]
+      ];
+
+      return Array.from({ length: 28 }, (_, dayOffset) => {
+        const date = new Date();
+        date.setDate(date.getDate() - dayOffset);
+        const mondayFirstIndex = (date.getDay() + 6) % 7;
+        const entries = pattern[mondayFirstIndex].filter((entry) => {
+          const targetCount = entry[1];
+          return Math.floor(dayOffset / 7) < targetCount;
+        });
+
+        return entries.map((entry, index) => {
+          const hour = entry[0];
+          const completedAt = new Date(date);
+          completedAt.setHours(hour, index % 2 === 0 ? 5 : 35, 0, 0);
+          return {
+            date: todayKey(completedAt),
+            completedAt: completedAt.toISOString()
+          };
+        });
+      }).flat();
+    }
+
+    function startPause() {
+      state.running = !state.running;
+
+      if (state.running) {
+        tick = setInterval(() => {
+          state.remaining = Math.max(0, state.remaining - 1);
+          if (state.remaining === 0) {
+            logPomodoro();
+          }
+          render();
+          saveState();
+        }, 1000);
+      } else {
+        clearInterval(tick);
+      }
+
+      render();
+      saveState();
+    }
+
+    function logPomodoro() {
+      clearInterval(tick);
+      state.running = false;
+      state.remaining = focusSeconds;
+      state.logs.push({
+        date: todayKey(),
+        completedAt: new Date().toISOString()
+      });
+      render();
+      saveState();
+    }
+
+    function undoLast() {
+      const today = todayKey();
+      const index = state.logs.map((log) => log.date).lastIndexOf(today);
+      if (index >= 0) {
+        state.logs.splice(index, 1);
+      }
+      render();
+      saveState();
+    }
+
+    function render() {
+      const logs = state.logs;
+      const today = logs.filter((log) => log.date === todayKey());
+      els.time.textContent = formatTime(state.remaining);
+      els.state.textContent = `${today.length} ${today.length === 1 ? "session" : "sessions"} today`;
+      els.mainButton.textContent = state.running ? "Pause" : "Start";
+      els.undoButton.disabled = today.length === 0;
+      renderHeatmap(logs);
+      document.title = state.running ? `${formatTime(state.remaining)} - Focus Sessions` : "Focus Sessions";
+    }
+
+    function renderHeatmap(logs) {
+      const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+      els.hourGrid.innerHTML = days.map((day, dayIndex) => {
+        const weekdayLogs = logs.filter((log) => {
+          const date = new Date(log.completedAt);
+          return ((date.getDay() + 6) % 7) === dayIndex;
+        });
+        const counts = hourCounts(weekdayLogs);
+        const cells = counts.map((count, hour) => {
+          const level = Math.min(count, 4);
+          const label = `${day} ${hour}:00, ${count} focus ${count === 1 ? "session" : "sessions"} in history`;
+          return `<div class="hour level-${level}" title="${label}" aria-label="${label}"></div>`;
+        }).join("");
+
+        return `<div class="day-label">${day}</div>${cells}`;
+      }).join("");
+    }
+
+    els.mainButton.addEventListener("click", startPause);
+    els.undoButton.addEventListener("click", undoLast);
+
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "Focus Sessions",
+  "short_name": "Focus",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "A local-first focus session timer and history heatmap."
+}

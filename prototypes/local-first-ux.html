@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Pomodoro</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f4ef;
+      --surface: #ffffff;
+      --surface-soft: #ebe7dd;
+      --ink: #181716;
+      --muted: #716c63;
+      --line: #d8d0c2;
+      --accent: #e85545;
+      --accent-strong: #c83c30;
+      --accent-soft: #ffe5df;
+      --teal: #1f7a73;
+      --teal-soft: #d8efea;
+      --blue: #2e6aa6;
+      --blue-soft: #dceaf8;
+      --shadow: 0 18px 45px rgba(40, 32, 23, 0.12);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0)),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.48;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 28px;
+      width: min(1160px, calc(100vw - 32px));
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    .main,
+    .side {
+      min-width: 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 44px;
+      margin-bottom: 20px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .brand strong {
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .today-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 122px;
+      height: 36px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.66);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .timer-panel {
+      display: grid;
+      gap: 22px;
+      align-content: center;
+      min-height: 520px;
+      padding: 34px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .mode-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .segment {
+      display: inline-grid;
+      grid-template-columns: repeat(2, minmax(112px, 1fr));
+      min-height: 38px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-soft);
+    }
+
+    .segment button {
+      min-height: 30px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .segment button.active {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 1px 8px rgba(40, 32, 23, 0.11);
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 11px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .status.break {
+      background: var(--teal-soft);
+      color: var(--teal);
+    }
+
+    .timer-face {
+      display: grid;
+      gap: 12px;
+      justify-items: start;
+      padding: 18px 0 10px;
+    }
+
+    .time {
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(76px, 12vw, 148px);
+      font-weight: 850;
+      line-height: 0.9;
+      letter-spacing: 0;
+    }
+
+    .intention {
+      display: flex;
+      align-items: center;
+      width: min(100%, 560px);
+      min-height: 54px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfaf7;
+      overflow: hidden;
+    }
+
+    .intention input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      padding: 0 15px;
+      color: var(--ink);
+      font-size: 16px;
+    }
+
+    .intention input::placeholder {
+      color: #9d968a;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(190px, 1fr) repeat(3, minmax(112px, 132px));
+      gap: 10px;
+      width: min(100%, 660px);
+    }
+
+    .primary,
+    .secondary,
+    .ghost {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 50px;
+      padding: 0 16px;
+      border-radius: var(--radius);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .primary:hover {
+      background: var(--accent-strong);
+    }
+
+    .secondary {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+    }
+
+    .secondary:hover,
+    .ghost:hover {
+      background: #f4f0e8;
+    }
+
+    .ghost {
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .progress-wrap {
+      width: min(100%, 660px);
+      height: 12px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      overflow: hidden;
+    }
+
+    .progress {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+      transition: width 250ms ease;
+    }
+
+    .side {
+      display: grid;
+      align-content: start;
+      gap: 14px;
+      padding-top: 64px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 52px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .tiny-button {
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stat {
+      display: grid;
+      gap: 4px;
+      min-height: 88px;
+      padding: 14px;
+      border-right: 1px solid var(--line);
+    }
+
+    .stat:last-child {
+      border-right: 0;
+    }
+
+    .stat strong {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .history {
+      display: grid;
+      gap: 8px;
+      max-height: 360px;
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .session {
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 8px 9px;
+      border: 1px solid #e4ddd1;
+      border-radius: var(--radius);
+      background: #fff;
+    }
+
+    .session-time {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .session-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .session-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 52px;
+      height: 26px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .empty {
+      padding: 28px 18px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .settings {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--ink);
+      padding: 0 10px;
+    }
+
+    .export-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 0 14px 14px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      display: none;
+      max-width: min(360px, calc(100vw - 40px));
+      padding: 13px 15px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--ink);
+      color: #fff;
+      box-shadow: var(--shadow);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    @media (max-width: 920px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .side {
+        padding-top: 0;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .app {
+        width: min(100vw - 20px, 640px);
+        padding: 10px 0 22px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        margin-bottom: 10px;
+      }
+
+      .timer-panel {
+        min-height: auto;
+        padding: 18px;
+      }
+
+      .controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .primary {
+        grid-column: 1 / -1;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stat {
+        min-height: 70px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .stat:last-child {
+        border-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="main" aria-label="Pomodoro timer">
+      <div class="topbar">
+        <div class="brand">
+          <strong>My Pomodoro</strong>
+          <span>Local-first focus logger</span>
+        </div>
+        <div class="today-pill" id="todayPill">Today: 0</div>
+      </div>
+
+      <section class="timer-panel">
+        <div class="mode-row">
+          <div class="segment" aria-label="Timer mode">
+            <button id="focusMode" class="active" type="button">Focus</button>
+            <button id="breakMode" type="button">Break</button>
+          </div>
+          <div class="status" id="statusPill">Ready</div>
+        </div>
+
+        <div class="timer-face">
+          <div class="time" id="timeDisplay">25:00</div>
+          <label class="intention">
+            <input id="intentionInput" type="text" maxlength="80" placeholder="What are you focusing on?">
+          </label>
+        </div>
+
+        <div class="progress-wrap" aria-hidden="true">
+          <div class="progress" id="progressBar"></div>
+        </div>
+
+        <div class="controls">
+          <button class="primary" id="startButton" type="button">Start Focus</button>
+          <button class="secondary" id="completeButton" type="button">Complete</button>
+          <button class="secondary" id="manualButton" type="button">+1 Manual</button>
+          <button class="ghost" id="resetButton" type="button">Reset</button>
+        </div>
+      </section>
+    </section>
+
+    <aside class="side" aria-label="Pomodoro log">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Today</h2>
+          <button class="tiny-button" id="clearTodayButton" type="button">Clear</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stat">
+            <strong id="completedCount">0</strong>
+            <span>completed</span>
+          </div>
+          <div class="stat">
+            <strong id="focusMinutes">0</strong>
+            <span>focus minutes</span>
+          </div>
+          <div class="stat">
+            <strong id="currentStreak">0</strong>
+            <span>day streak</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Session Log</h2>
+          <button class="tiny-button" id="copyMarkdownButton" type="button">Copy MD</button>
+        </div>
+        <div class="history" id="historyList"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Settings</h2>
+        </div>
+        <div class="settings">
+          <div class="field">
+            <label for="focusLength">Focus length</label>
+            <select id="focusLength">
+              <option value="15">15 minutes</option>
+              <option value="20">20 minutes</option>
+              <option value="25" selected>25 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="50">50 minutes</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="breakLength">Break length</label>
+            <select id="breakLength">
+              <option value="3">3 minutes</option>
+              <option value="5" selected>5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+            </select>
+          </div>
+        </div>
+        <div class="export-row">
+          <button class="secondary" id="exportCsvButton" type="button">CSV</button>
+          <button class="secondary" id="exportJsonButton" type="button">JSON</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const storageKey = "my-pomodoro.local-first-ux";
+    const els = {
+      todayPill: document.querySelector("#todayPill"),
+      focusMode: document.querySelector("#focusMode"),
+      breakMode: document.querySelector("#breakMode"),
+      statusPill: document.querySelector("#statusPill"),
+      timeDisplay: document.querySelector("#timeDisplay"),
+      intentionInput: document.querySelector("#intentionInput"),
+      progressBar: document.querySelector("#progressBar"),
+      startButton: document.querySelector("#startButton"),
+      completeButton: document.querySelector("#completeButton"),
+      manualButton: document.querySelector("#manualButton"),
+      resetButton: document.querySelector("#resetButton"),
+      clearTodayButton: document.querySelector("#clearTodayButton"),
+      completedCount: document.querySelector("#completedCount"),
+      focusMinutes: document.querySelector("#focusMinutes"),
+      currentStreak: document.querySelector("#currentStreak"),
+      historyList: document.querySelector("#historyList"),
+      focusLength: document.querySelector("#focusLength"),
+      breakLength: document.querySelector("#breakLength"),
+      copyMarkdownButton: document.querySelector("#copyMarkdownButton"),
+      exportCsvButton: document.querySelector("#exportCsvButton"),
+      exportJsonButton: document.querySelector("#exportJsonButton"),
+      toast: document.querySelector("#toast")
+    };
+
+    let state = loadState();
+    let timer = null;
+
+    function todayKey(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function loadState() {
+      const fallback = {
+        mode: "focus",
+        running: false,
+        remainingSeconds: 25 * 60,
+        totalSeconds: 25 * 60,
+        startedAt: null,
+        settings: { focusMinutes: 25, breakMinutes: 5 },
+        sessions: []
+      };
+
+      try {
+        return { ...fallback, ...JSON.parse(localStorage.getItem(storageKey) || "{}") };
+      } catch {
+        return fallback;
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function setMode(mode) {
+      const isFocus = mode === "focus";
+      state.mode = mode;
+      state.running = false;
+      state.totalSeconds = (isFocus ? state.settings.focusMinutes : state.settings.breakMinutes) * 60;
+      state.remainingSeconds = state.totalSeconds;
+      state.startedAt = null;
+      stopTick();
+      render();
+      saveState();
+    }
+
+    function startOrPause() {
+      if (state.running) {
+        state.running = false;
+        state.startedAt = null;
+        stopTick();
+      } else {
+        state.running = true;
+        state.startedAt = new Date().toISOString();
+        startTick();
+      }
+
+      render();
+      saveState();
+    }
+
+    function completeSession(source = "completed") {
+      if (state.mode === "focus") {
+        const title = els.intentionInput.value.trim() || "Focus session";
+        state.sessions.unshift({
+          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+          date: todayKey(),
+          title,
+          minutes: state.settings.focusMinutes,
+          completedAt: new Date().toISOString(),
+          source
+        });
+        els.intentionInput.value = "";
+        showToast("Pomodoro logged.");
+      } else {
+        showToast("Break complete.");
+      }
+
+      setMode(state.mode === "focus" ? "break" : "focus");
+      saveState();
+    }
+
+    function manualAdd() {
+      const title = els.intentionInput.value.trim() || "Manual Pomodoro";
+      state.sessions.unshift({
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        date: todayKey(),
+        title,
+        minutes: state.settings.focusMinutes,
+        completedAt: new Date().toISOString(),
+        source: "manual"
+      });
+      els.intentionInput.value = "";
+      showToast("Manual Pomodoro added.");
+      render();
+      saveState();
+    }
+
+    function resetTimer() {
+      setMode(state.mode);
+      showToast("Timer reset.");
+    }
+
+    function clearToday() {
+      const key = todayKey();
+      state.sessions = state.sessions.filter((session) => session.date !== key);
+      render();
+      saveState();
+      showToast("Today's log cleared.");
+    }
+
+    function startTick() {
+      stopTick();
+      timer = setInterval(() => {
+        state.remainingSeconds = Math.max(0, state.remainingSeconds - 1);
+        if (state.remainingSeconds === 0) {
+          stopTick();
+          state.running = false;
+          completeSession("timer");
+          return;
+        }
+        render();
+        saveState();
+      }, 1000);
+    }
+
+    function stopTick() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+
+    function formatTime(totalSeconds) {
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function sessionsToday() {
+      return state.sessions.filter((session) => session.date === todayKey());
+    }
+
+    function calculateStreak() {
+      const dates = new Set(state.sessions.map((session) => session.date));
+      let streak = 0;
+      const cursor = new Date();
+
+      while (dates.has(todayKey(cursor))) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+
+      return streak;
+    }
+
+    function render() {
+      const today = sessionsToday();
+      const completed = today.length;
+      const minutes = today.reduce((sum, session) => sum + Number(session.minutes || 0), 0);
+      const progress = 100 - Math.round((state.remainingSeconds / state.totalSeconds) * 100);
+      const modeLabel = state.mode === "focus" ? "Focus" : "Break";
+
+      els.todayPill.textContent = `Today: ${completed}`;
+      els.timeDisplay.textContent = formatTime(state.remainingSeconds);
+      els.progressBar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+      els.startButton.textContent = state.running ? "Pause" : `Start ${modeLabel}`;
+      els.completeButton.textContent = state.mode === "focus" ? "Complete" : "End Break";
+      els.statusPill.textContent = state.running ? `${modeLabel} running` : "Ready";
+      els.statusPill.classList.toggle("break", state.mode === "break");
+      els.focusMode.classList.toggle("active", state.mode === "focus");
+      els.breakMode.classList.toggle("active", state.mode === "break");
+      els.completedCount.textContent = completed;
+      els.focusMinutes.textContent = minutes;
+      els.currentStreak.textContent = calculateStreak();
+      els.focusLength.value = String(state.settings.focusMinutes);
+      els.breakLength.value = String(state.settings.breakMinutes);
+      document.title = state.running ? `${formatTime(state.remainingSeconds)} - My Pomodoro` : "My Pomodoro";
+
+      renderHistory(today);
+    }
+
+    function renderHistory(today) {
+      if (!today.length) {
+        els.historyList.innerHTML = '<div class="empty">No Pomodoros logged today.</div>';
+        return;
+      }
+
+      els.historyList.innerHTML = today.map((session) => {
+        const time = new Date(session.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const label = session.source === "manual" ? "manual" : `${session.minutes}m`;
+        return `
+          <div class="session">
+            <div class="session-time">${time}</div>
+            <div class="session-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</div>
+            <div class="session-badge">${label}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function exportRows() {
+      return state.sessions.map((session) => ({
+        date: session.date,
+        completedAt: session.completedAt,
+        minutes: session.minutes,
+        source: session.source,
+        title: session.title
+      }));
+    }
+
+    function downloadFile(filename, mimeType, contents) {
+      const blob = new Blob([contents], { type: mimeType });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function copyMarkdown() {
+      const today = sessionsToday();
+      const lines = [`# ${todayKey()}`, "", ...today.slice().reverse().map((session) => {
+        const time = new Date(session.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        return `- [x] ${time} Pomodoro - ${session.title}`;
+      }), "", `Total: ${today.length}`];
+
+      navigator.clipboard.writeText(lines.join("\n")).then(
+        () => showToast("Markdown copied."),
+        () => showToast("Could not copy Markdown in this browser.")
+      );
+    }
+
+    function exportCsv() {
+      const rows = exportRows();
+      const header = ["date", "completedAt", "minutes", "source", "title"];
+      const body = rows.map((row) => header.map((key) => `"${String(row[key]).replaceAll('"', '""')}"`).join(","));
+      downloadFile(`pomodoros-${todayKey()}.csv`, "text/csv", [header.join(","), ...body].join("\n"));
+    }
+
+    function exportJson() {
+      downloadFile(`pomodoros-${todayKey()}.json`, "application/json", JSON.stringify(exportRows(), null, 2));
+    }
+
+    function showToast(message) {
+      els.toast.textContent = message;
+      els.toast.classList.add("show");
+      setTimeout(() => els.toast.classList.remove("show"), 2200);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    els.focusMode.addEventListener("click", () => setMode("focus"));
+    els.breakMode.addEventListener("click", () => setMode("break"));
+    els.startButton.addEventListener("click", startOrPause);
+    els.completeButton.addEventListener("click", () => completeSession());
+    els.manualButton.addEventListener("click", manualAdd);
+    els.resetButton.addEventListener("click", resetTimer);
+    els.clearTodayButton.addEventListener("click", clearToday);
+    els.copyMarkdownButton.addEventListener("click", copyMarkdown);
+    els.exportCsvButton.addEventListener("click", exportCsv);
+    els.exportJsonButton.addEventListener("click", exportJson);
+
+    els.focusLength.addEventListener("change", () => {
+      state.settings.focusMinutes = Number(els.focusLength.value);
+      if (state.mode === "focus") setMode("focus");
+      saveState();
+    });
+
+    els.breakLength.addEventListener("change", () => {
+      state.settings.breakMinutes = Number(els.breakLength.value);
+      if (state.mode === "break") setMode("break");
+      saveState();
+    });
+
+    render();
+  </script>
+</body>
+</html>
