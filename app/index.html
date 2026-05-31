@@ -44,10 +44,11 @@
     }
 
     .app {
+      position: relative;
       display: grid;
       gap: 24px;
       width: min(720px, calc(100vw - 28px));
-      padding: 26px;
+      padding: 38px 26px 26px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: var(--surface);
@@ -110,17 +111,47 @@
     }
 
     .sync-status {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       min-height: 16px;
-      margin-top: -12px;
       color: var(--muted);
-      text-align: center;
       font-size: 12px;
       font-weight: 700;
       line-height: 1.3;
     }
 
-    .sync-status[data-status="issue"] {
-      color: var(--ink);
+    .sync-status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #c40000;
+    }
+
+    .sync-status[data-status="synced"]::before,
+    .sync-status[data-status="syncing"]::before {
+      background: #008000;
+    }
+
+    .sync-status[data-status="syncing"]::before {
+      animation: pulse 1.1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 0.35;
+        transform: scale(0.82);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.18);
+      }
     }
 
     .heatmap {
@@ -213,8 +244,6 @@
       </div>
     </section>
 
-    <div class="sync-status" id="syncStatus" data-status="local">Local only</div>
-
     <section class="heatmap" aria-label="Focus sessions by hour">
       <h2 class="visually-hidden">Global history by weekday and hour</h2>
       <div class="day-grid" id="hourGrid"></div>
@@ -226,6 +255,8 @@
         <span>6p</span>
       </div>
     </section>
+
+    <div class="sync-status" id="syncStatus" data-status="local">Local only</div>
   </main>
 
   <script>
