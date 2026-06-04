@@ -203,19 +203,30 @@
 
     .hour-labels {
       display: grid;
-      grid-template-columns: 48px repeat(4, 1fr);
+      grid-template-columns: 48px repeat(24, minmax(0, 1fr));
       color: var(--muted);
       font-size: 12px;
       font-variant-numeric: tabular-nums;
     }
 
-    .hour-labels span:nth-child(3),
-    .hour-labels span:nth-child(4) {
+    .hour-labels span {
       text-align: center;
     }
 
-    .hour-labels span:last-child {
-      text-align: right;
+    .hour-labels .label-12a {
+      grid-column: 2;
+    }
+
+    .hour-labels .label-6a {
+      grid-column: 8;
+    }
+
+    .hour-labels .label-12p {
+      grid-column: 14;
+    }
+
+    .hour-labels .label-6p {
+      grid-column: 20;
     }
 
     .visually-hidden {
@@ -250,10 +261,10 @@
       <div class="day-grid" id="hourGrid"></div>
       <div class="hour-labels" aria-hidden="true">
         <span></span>
-        <span>12a</span>
-        <span>6a</span>
-        <span>12p</span>
-        <span>6p</span>
+        <span class="label-12a">12a</span>
+        <span class="label-6a">6a</span>
+        <span class="label-12p">12p</span>
+        <span class="label-6p">6p</span>
       </div>
     </section>
 
