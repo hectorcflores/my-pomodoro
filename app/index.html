@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
-  <title>Focus Sessions</title>
+  <title>&#8203;</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <style>
     :root {
@@ -126,8 +127,8 @@
 
     .sync-status::before {
       content: "";
-      width: 8px;
-      height: 8px;
+      width: 16px;
+      height: 16px;
       border-radius: 999px;
       background: #c40000;
     }
@@ -281,6 +282,7 @@
     let state = loadState();
     let tick = null;
     let syncConfig = null;
+    let audioContext = null;
 
     function todayKey(date = new Date()) {
       const year = date.getFullYear();
@@ -297,14 +299,18 @@
     function loadState() {
       const fallback = {
         sessions: [],
-        activeSession: null
+        activeSession: null,
+        completionPending: false
       };
 
       try {
         const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        const sessions = Array.isArray(stored.sessions) ? stored.sessions : [];
         return {
-          sessions: Array.isArray(stored.sessions) ? stored.sessions : [],
-          activeSession: stored.activeSession || null
+          sessions,
+          activeSession: stored.activeSession || null,
+          completionPending: Boolean(stored.completionPending)
+            && sessions.some((session) => session.date === todayKey())
         };
       } catch {
         return fallback;
@@ -379,6 +385,7 @@
         durationSeconds: sessionSeconds,
         pausedRemainingSeconds: null
       };
+      state.completionPending = false;
       startTick();
       render();
       saveState();
@@ -404,6 +411,8 @@
     }
 
     function handleMainAction() {
+      prepareAlerts();
+
       if (!state.activeSession) {
         startSession();
         return;
@@ -429,9 +438,11 @@
       };
       state.sessions.push(session);
       state.activeSession = null;
+      state.completionPending = true;
       stopTick();
       render();
       saveState();
+      alertCompletion();
       createRemoteSession(session);
     }
 
@@ -440,6 +451,7 @@
       const index = state.sessions.map((session) => session.date).lastIndexOf(today);
       if (index >= 0) {
         state.sessions.splice(index, 1);
+        state.completionPending = false;
         render();
         saveState();
         undoRemoteSession();
@@ -503,19 +515,96 @@
       const today = sessionsToday();
       const remaining = remainingSeconds();
 
-      els.time.textContent = formatTime(remaining);
+      els.time.textContent = state.completionPending && !state.activeSession ? "Done" : formatTime(remaining);
       els.state.textContent = `${today.length} ${today.length === 1 ? "session" : "sessions"} today`;
       els.mainButton.textContent = buttonLabel();
       els.undoButton.disabled = today.length === 0;
       renderHeatmap();
-      document.title = state.activeSession && state.activeSession.pausedRemainingSeconds === null
-        ? `${formatTime(remaining)} - Focus Sessions`
-        : "Focus Sessions";
+      updateTabTitle(remaining);
     }
 
     function buttonLabel() {
-      if (!state.activeSession) return "Start";
+      if (!state.activeSession) return state.completionPending ? "Start next" : "Start";
       return state.activeSession.pausedRemainingSeconds !== null ? "Resume" : "Pause";
+    }
+
+    function updateTabTitle(remaining) {
+      if (state.completionPending && !state.activeSession) {
+        document.title = "Done";
+        return;
+      }
+
+      document.title = state.activeSession && state.activeSession.pausedRemainingSeconds === null
+        ? formatTime(remaining)
+        : "\u200B";
+    }
+
+    function prepareAlerts() {
+      prepareAudio();
+      requestNotificationPermission();
+    }
+
+    function prepareAudio() {
+      try {
+        audioContext = audioContext || new AudioContext();
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+
+    function requestNotificationPermission() {
+      if (!("Notification" in window) || Notification.permission !== "default") return;
+      const permissionRequest = Notification.requestPermission();
+      if (permissionRequest && typeof permissionRequest.catch === "function") {
+        permissionRequest.catch((error) => console.warn(error));
+      }
+    }
+
+    function alertCompletion() {
+      playDoubleDing();
+      showCompletionNotification();
+    }
+
+    function playDoubleDing() {
+      try {
+        prepareAudio();
+        if (!audioContext) return;
+
+        playTone(880, 0);
+        playTone(1175, 0.22);
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+
+    function playTone(frequency, delay) {
+      const start = audioContext.currentTime + delay;
+      const duration = 0.16;
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(start);
+      oscillator.stop(start + duration + 0.02);
+    }
+
+    function showCompletionNotification() {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+      new Notification("Done", {
+        body: "Focus session complete.",
+        icon: "./favicon.svg"
+      });
     }
 
     function renderHeatmap() {

@@ -5,5 +5,13 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
-  "description": "A local-first focus session timer and history heatmap."
+  "description": "A local-first focus session timer and history heatmap.",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }
