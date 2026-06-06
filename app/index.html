@@ -584,8 +584,8 @@
         prepareAudio();
         if (!audioContext) return;
 
-        playTone(880, 0);
-        playTone(1175, 0.22);
+        playTone(784, 0);
+        playTone(1046, 0.32);
       } catch (error) {
         console.warn(error);
       }
@@ -593,20 +593,31 @@
 
     function playTone(frequency, delay) {
       const start = audioContext.currentTime + delay;
-      const duration = 0.16;
+      const duration = 0.28;
       const oscillator = audioContext.createOscillator();
+      const harmonic = audioContext.createOscillator();
       const gain = audioContext.createGain();
+      const harmonicGain = audioContext.createGain();
 
-      oscillator.type = "sine";
+      oscillator.type = "triangle";
       oscillator.frequency.setValueAtTime(frequency, start);
+      harmonic.type = "sine";
+      harmonic.frequency.setValueAtTime(frequency * 2, start);
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.32, start + 0.025);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      harmonicGain.gain.setValueAtTime(0.0001, start);
+      harmonicGain.gain.exponentialRampToValueAtTime(0.08, start + 0.025);
+      harmonicGain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
       oscillator.connect(gain);
+      harmonic.connect(harmonicGain);
       gain.connect(audioContext.destination);
+      harmonicGain.connect(audioContext.destination);
       oscillator.start(start);
+      harmonic.start(start);
       oscillator.stop(start + duration + 0.02);
+      harmonic.stop(start + duration + 0.02);
     }
 
     function showCompletionNotification() {
