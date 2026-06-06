@@ -526,7 +526,7 @@
       const today = sessionsToday();
       const remaining = remainingSeconds();
 
-      els.time.textContent = state.completionPending && !state.activeSession ? "Done" : formatTime(remaining);
+      els.time.textContent = formatTime(remaining);
       els.state.textContent = `${today.length} ${today.length === 1 ? "session" : "sessions"} today`;
       els.mainButton.textContent = buttonLabel();
       els.undoButton.disabled = today.length === 0;
