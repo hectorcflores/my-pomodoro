@@ -62,6 +62,13 @@
       padding: 10px 0 2px;
     }
 
+    .state {
+      min-height: 21px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
     .time {
       font-variant-numeric: tabular-nums;
       font-size: clamp(74px, 22vw, 104px);
@@ -223,10 +230,22 @@
     }
 
     .hour {
+      display: grid;
+      place-items: center;
       aspect-ratio: 1;
       min-width: 0;
       border: 1px solid #000;
       background: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      color: #000;
+    }
+
+    .hour.level-3,
+    .hour.level-4 {
+      color: #fff;
     }
 
     .hour.level-1 {
@@ -289,6 +308,7 @@
 <body>
   <main class="app" aria-label="Focus session timer">
     <section class="timer">
+      <div class="state" id="state">0 sessions today</div>
       <div class="time" id="time">30:00</div>
     </section>
 
@@ -349,6 +369,7 @@
 
     const els = {
       time: document.querySelector("#time"),
+      state: document.querySelector("#state"),
       mainButton: document.querySelector("#mainButton"),
       undoButton: document.querySelector("#undoButton"),
       syncStatus: document.querySelector("#syncStatus"),
@@ -600,6 +621,7 @@
       const remaining = remainingSeconds();
 
       els.time.textContent = formatTime(remaining);
+      els.state.textContent = sessionsLabel(today.length) + " today";
       els.mainButton.textContent = buttonLabel();
       els.undoButton.disabled = today.length === 0;
       renderWeekPace();
@@ -753,7 +775,7 @@
         const cells = counts.map((count, hour) => {
           const level = Math.min(count, 4);
           const label = `${day} ${hour}:00, ${count} focus ${count === 1 ? "session" : "sessions"} in history`;
-          return `<div class="hour level-${level}" title="${label}" aria-label="${label}"></div>`;
+          return `<div class="hour level-${level}" title="${label}" aria-label="${label}">${count === 0 ? "" : count}</div>`;
         }).join("");
 
         return `<div class="day-label">${day}</div>${cells}`;
