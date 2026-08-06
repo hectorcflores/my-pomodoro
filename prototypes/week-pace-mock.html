@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Week pace mock</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --ink: #000;
+      --muted: #555;
+      --line: #000;
+      --surface: #fff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    button {
+      min-height: 54px;
+      border: 0;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .app {
+      position: relative;
+      display: grid;
+      gap: 24px;
+      width: min(720px, calc(100vw - 28px));
+      padding: 38px 26px 26px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .timer {
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+      padding: 10px 0 2px;
+    }
+
+    .time {
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(74px, 22vw, 104px);
+      font-weight: 850;
+      line-height: 0.92;
+    }
+
+    .state {
+      min-height: 21px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .actions { display: grid; gap: 10px; }
+
+    .primary { background: #000; color: #fff; }
+    .primary:hover { background: #222; }
+
+    .small-actions { display: grid; }
+    .small-actions button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .sync-status {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 16px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .sync-status::before {
+      content: "";
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #008000;
+    }
+
+    /* ---- NEW: week pace section ---- */
+    .week-pace {
+      display: grid;
+      gap: 8px;
+      padding-top: 2px;
+    }
+
+    .pace-row {
+      display: grid;
+      grid-template-columns: 64px 1fr 34px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .pace-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+
+    .pace-bar {
+      height: 16px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .pace-fill {
+      height: 100%;
+      background: #000;
+    }
+
+    .pace-fill.avg { background: #a6a6a6; }
+
+    .pace-count {
+      font-size: 14px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .pace-count.avg { color: var(--muted); }
+    /* -------------------------------- */
+
+    .heatmap { display: grid; gap: 10px; padding-top: 2px; }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: 48px repeat(24, minmax(0, 1fr));
+      gap: 4px;
+      align-items: center;
+    }
+
+    .day-label {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .hour {
+      aspect-ratio: 1;
+      min-width: 0;
+      border: 1px solid #000;
+      background: #fff;
+    }
+
+    .hour.level-1 { background: #d9d9d9; }
+    .hour.level-2 { background: #a6a6a6; }
+    .hour.level-3 { background: #595959; }
+    .hour.level-4 { background: #000; }
+
+    .hour-labels {
+      display: grid;
+      grid-template-columns: 48px repeat(24, minmax(0, 1fr));
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hour-labels span { text-align: center; }
+    .hour-labels .label-12a { grid-column: 2; }
+    .hour-labels .label-6a { grid-column: 8; }
+    .hour-labels .label-12p { grid-column: 14; }
+    .hour-labels .label-6p { grid-column: 20; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="timer">
+      <div class="time">30:00</div>
+    </section>
+
+    <section class="actions">
+      <button class="primary" type="button">Start</button>
+      <div class="small-actions">
+        <button type="button">Undo</button>
+      </div>
+    </section>
+
+    <!-- NEW: day + week pace -->
+    <section class="week-pace" aria-label="Today and this week versus the same point before">
+      <div class="pace-row">
+        <div class="pace-label">Today</div>
+        <div class="pace-bar"><div class="pace-fill" id="todayFill"></div></div>
+        <div class="pace-count" id="todayCount"></div>
+      </div>
+      <div class="pace-row" style="margin-bottom:8px;">
+        <div class="pace-label">Yesterday</div>
+        <div class="pace-bar"><div class="pace-fill avg" id="yesterdayFill"></div></div>
+        <div class="pace-count avg" id="yesterdayCount"></div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Week</div>
+        <div class="pace-bar"><div class="pace-fill" id="thisWeekFill"></div></div>
+        <div class="pace-count" id="thisWeekCount"></div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Last week</div>
+        <div class="pace-bar"><div class="pace-fill avg" id="lastWeekFill"></div></div>
+        <div class="pace-count avg" id="lastWeekCount"></div>
+      </div>
+    </section>
+
+    <section class="heatmap" aria-label="Focus sessions by hour">
+      <div class="day-grid" id="hourGrid"></div>
+      <div class="hour-labels" aria-hidden="true">
+        <span class="label-12a">12a</span>
+        <span class="label-6a">6a</span>
+        <span class="label-12p">12p</span>
+        <span class="label-6p">6p</span>
+      </div>
+    </section>
+
+    <div class="sync-status">Synced</div>
+  </main>
+
+  <script>
+    // Real completion times (epoch seconds) from the 2026-08-05 backup.
+    const EPOCHS = [1780239610,1780320064,1780330945,1780338757,1780350128,1780414542,1780421311,1780428512,1780435751,1780492575,1780496318,1780499268,1780502176,1780505466,1780508900,1780579357,1780583900,1780664589,1780666402,1780669886,1780671694,1780674955,1780676759,1780684047,1780685857,1780711355,1780713162,1780753147,1780755126,1780758833,1780786280,1780798739,1780839551,1780841745,1780843791,1780928220,1780931026,1780932833,1780934698,1780941593,1780948075,1780949882,1780961491,1780965952,1781011882,1781017692,1781019497,1781021308,1781024243,1781026047,1781027852,1781030181,1781039552,1781052338,1781054146,1781097832,1781104222,1781106029,1781109698,1781112226,1781118167,1781136839,1781138646,1781141320,1781143127,1781195517,1781197323,1781206252,1781210472,1781212280,1781273144,1781276103,1781278476,1781287912,1781289756,1781291561,1781297250,1781299922,1781312499,1781315130,1781316935,1781320396,1781359056,1781362591,1781368906,1781446874,1781491253,1781493664,1781533097,1781539719,1781550080,1781552412,1781554219,1781556128,1781562631,1781577438,1781584211,1781615832,1781619389,1781624098,1781626306,1781630362,1781636186,1781638396,1781640454,1781647175,1781648995,1781650822,1781702269,1781705752,1781708702,1781713403,1781715842,1781719368,1781791608,1781793418,1781798078,1781800754,1781809945,1781811925,1781816429,1781885138,1781888631,1781890450,1781893115,1781894921,1782048018,1782049957,1782052720,1782138591,1782143529,1782146863,1782148666,1782150546,1782154644,1782156488,1782158293,1782166476,1782223864,1782232355,1782234249,1782236056,1782240483,1782250183,1782310496,1782315980,1782318314,1782320747,1782324969,1782326940,1782328745,1782337848,1782339653,1782395232,1782397544,1782415231,1782418163,1782419968,1782435215,1782497179,1782498986,1782502534,1782514644,1782516625,1782518590,1782566814,1782568716,1782616214,1782658338,1782675524,1782679721,1782741588,1782743394,1782748085,1782749891,1782751695,1782753501,1782777459,1782780164,1782830196,1782832001,1782833807,1782839301,1782848346,1782852264,1782910578,1782917138,1782918946,1782924646,1782951892,1782998165,1783006601,1783009435,1783014214,1783018286,1783025214,1783029951,1783086860,1783093752,1783095558,1783129404,1783131363,1783133208,1783142311,1783144125,1783260708,1783763436,1784388586,1784428230,1784466027,1784467833,1784469663,1784471574,1784473611,1784554800,1784556953,1784564216,1784566959,1784634275,1784636509,1784647519,1784649455,1784651264,1784681474,1784721645,1784723451,1784729015,1784742057,1784743864,1784745669,1784747481,1784749288,1784762912,1784764716,1784768165,1784816049,1784825543,1784827440,1784829246,1784831570,1784833375,1784835181,1784839108,1784840980,1784899203,1784903787,1784905593,1784920415,1785076009,1785077380,1785084069,1785161363,1785163168,1785173039,1785174904,1785176710,1785178544,1785198011,1785247132,1785252396,1785254200,1785256005,1785266308,1785269288,1785271382,1785331497,1785336945,1785338750,1785364461,1785424334,1785426144,1785429046,1785431002,1785433351,1785435156,1785438691,1785505194,1785507632,1785518902,1785520943,1785523008,1785525172,1785526979,1785591444,1785593248,1785638531,1785691573,1785693379,1785767107,1785777219,1785782847,1785784729,1785809880,1785811685,1785817285,1785820063,1785852224,1785854029,1785855922,1785857938,1785859743,1785861650,1785864910,1785867418,1785873160,1785938859,1785941906,1785947367,1785956615,1785958420,1785972808,1785986219];
+
+    // Week runs Saturday 00:00 -> Friday 24:00, local time.
+    const now = new Date();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 1) % 7));
+    const ws = weekStart.getTime() / 1000;
+    const nowSec = now.getTime() / 1000;
+    const elapsed = nowSec - ws;
+
+    const inRange = (lo, hi) => EPOCHS.filter(e => e >= lo && e < hi).length;
+    const thisWeek = inRange(ws, nowSec);
+    const lastWeek = inRange(ws - 7 * 86400, ws - 7 * 86400 + elapsed);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+    const today = inRange(todayStart, nowSec);
+
+    const paceMax = Math.max(thisWeek, lastWeek, 1);
+    document.getElementById("thisWeekCount").textContent = thisWeek;
+    document.getElementById("lastWeekCount").textContent = lastWeek;
+    document.getElementById("thisWeekFill").style.width = (thisWeek / paceMax * 100) + "%";
+    document.getElementById("lastWeekFill").style.width = (lastWeek / paceMax * 100) + "%";
+
+    const dayElapsed = nowSec - todayStart;
+    const yesterday = inRange(todayStart - 86400, todayStart - 86400 + dayElapsed);
+    const dayMax = Math.max(today, yesterday, 1);
+    document.getElementById("todayCount").textContent = today;
+    document.getElementById("yesterdayCount").textContent = yesterday;
+    document.getElementById("todayFill").style.width = (today / dayMax * 100) + "%";
+    document.getElementById("yesterdayFill").style.width = (yesterday / dayMax * 100) + "%";
+
+    // Real weekday x hour counts from the 2026-08-05 backup.
+    const grid = [[0,0,0,0,0,0,0,3,8,4,7,8,5,6,3,1,2,2,3,0,3,0,2,1],
+                  [0,0,0,0,0,1,1,3,5,12,8,8,4,5,4,4,1,1,2,1,0,0,0,0],
+                  [0,0,0,0,0,0,3,4,8,8,6,5,5,6,0,1,2,2,4,2,0,0,0,0],
+                  [0,0,0,0,0,0,0,3,5,4,5,6,3,7,5,3,1,0,1,0,0,0,0,0],
+                  [0,0,0,0,0,0,0,5,5,5,3,3,10,5,1,1,1,1,1,3,5,1,0,2],
+                  [0,0,0,1,0,0,0,5,3,2,1,0,0,0,0,0,1,0,0,0,3,1,0,0],
+                  [0,0,0,0,0,0,0,5,10,2,1,2,0,1,1,0,0,0,0,0,1,1,0,0]];
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const max = Math.max(...grid.flat());
+    document.getElementById("hourGrid").innerHTML = grid.map((row, i) => {
+      const cells = row.map(n => {
+        const level = n === 0 ? 0 : Math.max(1, Math.ceil((n / max) * 4));
+        return `<div class="hour level-${level}"></div>`;
+      }).join("");
+      return `<div class="day-label">${days[i]}</div>${cells}`;
+    }).join("");
+  </script>
+</body>
+</html>
