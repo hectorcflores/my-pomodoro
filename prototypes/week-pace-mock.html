@@ -164,10 +164,22 @@
     }
 
     .hour {
+      display: grid;
+      place-items: center;
       aspect-ratio: 1;
       min-width: 0;
       border: 1px solid #000;
       background: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      color: #000;
+    }
+
+    .hour.level-3,
+    .hour.level-4 {
+      color: #fff;
     }
 
     .hour.level-1 { background: #d9d9d9; }
@@ -285,7 +297,7 @@
     document.getElementById("hourGrid").innerHTML = grid.map((row, i) => {
       const cells = row.map(n => {
         const level = n === 0 ? 0 : Math.max(1, Math.ceil((n / max) * 4));
-        return `<div class="hour level-${level}"></div>`;
+        return `<div class="hour level-${level}">${n === 0 ? "" : n}</div>`;
       }).join("");
       return `<div class="day-label">${days[i]}</div>${cells}`;
     }).join("");
