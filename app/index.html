@@ -155,6 +155,53 @@
       }
     }
 
+    .week-pace {
+      display: grid;
+      gap: 8px;
+      padding-top: 2px;
+    }
+
+    .pace-row {
+      display: grid;
+      grid-template-columns: 64px 1fr 34px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .pace-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+
+    .pace-bar {
+      height: 16px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .pace-fill {
+      height: 100%;
+      width: 0;
+      background: #000;
+    }
+
+    .pace-fill.past {
+      background: #a6a6a6;
+    }
+
+    .pace-count {
+      font-size: 14px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .pace-count.past {
+      color: var(--muted);
+    }
+
     .heatmap {
       display: grid;
       gap: 10px;
@@ -256,6 +303,19 @@
       </div>
     </section>
 
+    <section class="week-pace" aria-label="This week versus this time last week">
+      <div class="pace-row">
+        <div class="pace-label">This week</div>
+        <div class="pace-bar"><div class="pace-fill" id="thisWeekFill"></div></div>
+        <div class="pace-count" id="thisWeekCount">0</div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">This time<br>last week</div>
+        <div class="pace-bar"><div class="pace-fill past" id="lastWeekFill"></div></div>
+        <div class="pace-count past" id="lastWeekCount">0</div>
+      </div>
+    </section>
+
     <section class="heatmap" aria-label="Focus sessions by hour">
       <h2 class="visually-hidden">Global history by weekday and hour</h2>
       <div class="day-grid" id="hourGrid"></div>
@@ -287,7 +347,11 @@
       mainButton: document.querySelector("#mainButton"),
       undoButton: document.querySelector("#undoButton"),
       syncStatus: document.querySelector("#syncStatus"),
-      hourGrid: document.querySelector("#hourGrid")
+      hourGrid: document.querySelector("#hourGrid"),
+      thisWeekFill: document.querySelector("#thisWeekFill"),
+      thisWeekCount: document.querySelector("#thisWeekCount"),
+      lastWeekFill: document.querySelector("#lastWeekFill"),
+      lastWeekCount: document.querySelector("#lastWeekCount")
     };
 
     let state = loadState();
@@ -530,6 +594,7 @@
       els.state.textContent = `${today.length} ${today.length === 1 ? "session" : "sessions"} today`;
       els.mainButton.textContent = buttonLabel();
       els.undoButton.disabled = today.length === 0;
+      renderWeekPace();
       renderHeatmap();
       updateTabTitle(remaining);
     }
@@ -627,6 +692,29 @@
         body: "Focus session complete.",
         icon: "./favicon.svg"
       });
+    }
+
+    function renderWeekPace() {
+      // Weeks run Saturday 00:00 -> Friday 24:00, local time (same as the weekly email).
+      const now = new Date();
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 1) % 7));
+      const elapsed = now.getTime() - weekStart.getTime();
+      const lastWeekStart = weekStart.getTime() - 7 * 86400 * 1000;
+
+      const countBetween = (lo, hi) => state.sessions.filter((session) => {
+        const at = new Date(session.completedAt).getTime();
+        return at >= lo && at < hi;
+      }).length;
+
+      const thisWeek = countBetween(weekStart.getTime(), now.getTime());
+      const lastWeek = countBetween(lastWeekStart, lastWeekStart + elapsed);
+      const paceMax = Math.max(thisWeek, lastWeek, 1);
+
+      els.thisWeekCount.textContent = thisWeek;
+      els.lastWeekCount.textContent = lastWeek;
+      els.thisWeekFill.style.width = `${(thisWeek / paceMax) * 100}%`;
+      els.lastWeekFill.style.width = `${(lastWeek / paceMax) * 100}%`;
     }
 
     function renderHeatmap() {
