@@ -156,7 +156,7 @@
 
     .pace-row {
       display: grid;
-      grid-template-columns: 64px 1fr 34px;
+      grid-template-columns: 64px 1fr 86px;
       gap: 10px;
       align-items: center;
     }
@@ -702,6 +702,10 @@
       });
     }
 
+    function sessionsLabel(count) {
+      return `${count} ${count === 1 ? "session" : "sessions"}`;
+    }
+
     function renderWeekPace() {
       // Weeks run Saturday 00:00 -> Friday 24:00, local time (same as the weekly email).
       const now = new Date();
@@ -719,8 +723,8 @@
       const lastWeek = countBetween(lastWeekStart, lastWeekStart + elapsed);
       const paceMax = Math.max(thisWeek, lastWeek, 1);
 
-      els.thisWeekCount.textContent = thisWeek;
-      els.lastWeekCount.textContent = lastWeek;
+      els.thisWeekCount.textContent = sessionsLabel(thisWeek);
+      els.lastWeekCount.textContent = sessionsLabel(lastWeek);
       els.thisWeekFill.style.width = `${(thisWeek / paceMax) * 100}%`;
       els.lastWeekFill.style.width = `${(lastWeek / paceMax) * 100}%`;
 
@@ -731,8 +735,8 @@
       const yesterday = countBetween(yesterdayStart, yesterdayStart + dayElapsed);
       const dayMax = Math.max(today, yesterday, 1);
 
-      els.todayCount.textContent = today;
-      els.yesterdayCount.textContent = yesterday;
+      els.todayCount.textContent = sessionsLabel(today);
+      els.yesterdayCount.textContent = sessionsLabel(yesterday);
       els.todayFill.style.width = `${(today / dayMax) * 100}%`;
       els.yesterdayFill.style.width = `${(yesterday / dayMax) * 100}%`;
     }
