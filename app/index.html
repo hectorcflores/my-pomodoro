@@ -966,6 +966,21 @@
 
       render();
       setInterval(maybeShowIdleNudge, 30 * 1000);
+
+      if (params.get("test_notification")) {
+        requestNotificationPermission();
+        setTimeout(() => {
+          if (!("Notification" in window) || Notification.permission !== "granted") {
+            alert("Notifications are not allowed for this site in Chrome.");
+            return;
+          }
+          new Notification("Test", {
+            body: "If you can read this, banners work.",
+            icon: "./favicon.svg"
+          });
+        }, 3000);
+      }
+
       await loadRemoteSessions();
     }
 
