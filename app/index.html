@@ -362,6 +362,8 @@
     const syncConfigStorageKey = "focus-sessions.sync-config.v1";
     const clientIdStorageKey = "focus-sessions.client-id.v1";
     const defaultSessionSeconds = 30 * 60;
+    const idleNudgeAfterSeconds = 15 * 60;
+    const idleNudgeMaxAgeSeconds = 90 * 60;
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const urlSeconds = Number(params.get("seconds"));
@@ -405,7 +407,8 @@
       const fallback = {
         sessions: [],
         activeSession: null,
-        completionPending: false
+        completionPending: false,
+        nudgedSessionId: null
       };
 
       try {
@@ -415,7 +418,8 @@
           sessions,
           activeSession: stored.activeSession || null,
           completionPending: Boolean(stored.completionPending)
-            && sessions.some((session) => session.date === todayKey())
+            && sessions.some((session) => session.date === todayKey()),
+          nudgedSessionId: stored.nudgedSessionId || null
         };
       } catch {
         return fallback;
@@ -724,6 +728,33 @@
       });
     }
 
+    function maybeShowIdleNudge() {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      if (state.activeSession) return;
+
+      const last = sessionsToday().reduce((latest, session) => {
+        if (!latest) return session;
+        return session.completedAt > latest.completedAt ? session : latest;
+      }, null);
+      if (!last || last.id === state.nudgedSessionId) return;
+
+      // Only nudge in the window where a forgotten restart is plausible.
+      const idleSeconds = (Date.now() - new Date(last.completedAt).getTime()) / 1000;
+      if (idleSeconds < idleNudgeAfterSeconds || idleSeconds > idleNudgeMaxAgeSeconds) return;
+
+      state.nudgedSessionId = last.id;
+      saveState();
+
+      const notification = new Notification("Still working?", {
+        body: "No session running. Start one so it counts.",
+        icon: "./favicon.svg"
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    }
+
     function sessionsLabel(count) {
       return `${count} ${count === 1 ? "session" : "sessions"}`;
     }
@@ -902,6 +933,7 @@
       }
 
       render();
+      setInterval(maybeShowIdleNudge, 30 * 1000);
       await loadRemoteSessions();
     }
 
