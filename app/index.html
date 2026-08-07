@@ -356,6 +356,11 @@
         <div class="pace-bar"><div class="pace-fill past" id="lastWeekFill"></div></div>
         <div class="pace-count past" id="lastWeekCount">0</div>
       </div>
+      <div class="pace-row">
+        <div class="pace-label" title="Average of the last 4 weeks, by this point of the week">Last 4 weeks</div>
+        <div class="pace-bar"><div class="pace-fill past" id="last4WeeksFill"></div></div>
+        <div class="pace-count past" id="last4WeeksCount">0</div>
+      </div>
     </section>
 
     <section class="heatmap" aria-label="Focus sessions by hour">
@@ -399,7 +404,9 @@
       thisWeekFill: document.querySelector("#thisWeekFill"),
       thisWeekCount: document.querySelector("#thisWeekCount"),
       lastWeekFill: document.querySelector("#lastWeekFill"),
-      lastWeekCount: document.querySelector("#lastWeekCount")
+      lastWeekCount: document.querySelector("#lastWeekCount"),
+      last4WeeksFill: document.querySelector("#last4WeeksFill"),
+      last4WeeksCount: document.querySelector("#last4WeeksCount")
     };
 
     let state = loadState();
@@ -790,12 +797,20 @@
 
       const thisWeek = countBetween(weekStart.getTime(), now.getTime());
       const lastWeek = countBetween(lastWeekStart, lastWeekStart + elapsed);
-      const paceMax = Math.max(thisWeek, lastWeek, 1);
+      let last4Total = 0;
+      for (let weeksBack = 1; weeksBack <= 4; weeksBack += 1) {
+        const start = weekStart.getTime() - weeksBack * 7 * 86400 * 1000;
+        last4Total += countBetween(start, start + elapsed);
+      }
+      const last4Avg = Math.round(last4Total / 4);
+      const paceMax = Math.max(thisWeek, lastWeek, last4Avg, 1);
 
       els.thisWeekCount.textContent = sessionsLabel(thisWeek);
       els.lastWeekCount.textContent = sessionsLabel(lastWeek);
+      els.last4WeeksCount.textContent = sessionsLabel(last4Avg);
       els.thisWeekFill.style.width = `${(thisWeek / paceMax) * 100}%`;
       els.lastWeekFill.style.width = `${(lastWeek / paceMax) * 100}%`;
+      els.last4WeeksFill.style.width = `${(last4Avg / paceMax) * 100}%`;
 
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const dayElapsed = now.getTime() - todayStart;
