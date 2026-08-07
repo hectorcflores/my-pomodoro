@@ -383,12 +383,13 @@
     const syncConfigStorageKey = "focus-sessions.sync-config.v1";
     const clientIdStorageKey = "focus-sessions.client-id.v1";
     const defaultSessionSeconds = 30 * 60;
-    const idleNudgeAfterSeconds = 15 * 60;
-    const idleNudgeMaxAgeSeconds = 90 * 60;
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const urlSeconds = Number(params.get("seconds"));
     const sessionSeconds = Number.isFinite(urlSeconds) && urlSeconds > 0 ? urlSeconds : defaultSessionSeconds;
+    const urlNudgeAfter = Number(params.get("nudge_after"));
+    const idleNudgeAfterSeconds = Number.isFinite(urlNudgeAfter) && urlNudgeAfter > 0 ? urlNudgeAfter : 15 * 60;
+    const idleNudgeMaxAgeSeconds = idleNudgeAfterSeconds + 75 * 60;
 
     const els = {
       time: document.querySelector("#time"),
