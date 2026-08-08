@@ -9,6 +9,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300..700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
   <style>
     :root {
       --bg: #fff;
@@ -117,6 +118,33 @@
       padding: 0 22px;
       color: var(--ink-2);
       font-size: 14px;
+    }
+
+    .streak {
+      position: absolute;
+      top: 16px;
+      left: 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 13px 6px 10px;
+    }
+
+    .streak[hidden] {
+      display: none;
+    }
+
+    .streak .material-symbols-outlined {
+      font-family: "Material Symbols Outlined";
+      font-size: 16px;
+      line-height: 1;
+      color: var(--ink-2);
+      font-variation-settings: "opsz" 20, "wght" 400, "FILL" 1, "GRAD" 0;
     }
 
     .sync-status {
@@ -323,6 +351,10 @@
 </head>
 <body>
   <main class="app" aria-label="Focus session timer">
+    <div class="streak" id="streak" hidden>
+      <span class="material-symbols-outlined" aria-hidden="true">local_fire_department</span>
+      <span id="streakCount"></span>
+    </div>
     <section class="timer">
       <div class="state" id="state">0 sessions today</div>
       <div class="time" id="time">30:00</div>
@@ -407,7 +439,9 @@
       lastWeekFill: document.querySelector("#lastWeekFill"),
       lastWeekCount: document.querySelector("#lastWeekCount"),
       last4WeeksFill: document.querySelector("#last4WeeksFill"),
-      last4WeeksCount: document.querySelector("#last4WeeksCount")
+      last4WeeksCount: document.querySelector("#last4WeeksCount"),
+      streak: document.querySelector("#streak"),
+      streakCount: document.querySelector("#streakCount")
     };
 
     let state = loadState();
@@ -652,6 +686,7 @@
       els.state.textContent = sessionsLabel(today.length) + " today";
       els.mainButton.textContent = buttonLabel();
       els.undoButton.disabled = today.length === 0;
+      renderStreak();
       renderWeekPace();
       renderHeatmap();
       updateTabTitle(remaining);
@@ -781,6 +816,29 @@
 
     function sessionsLabel(count) {
       return `${count} ${count === 1 ? "session" : "sessions"}`;
+    }
+
+    function streakDays() {
+      // Consecutive days with at least one session, ending today or yesterday.
+      const dates = new Set(state.sessions.map((session) => session.date));
+      const cursor = new Date();
+      if (!dates.has(todayKey(cursor))) {
+        cursor.setDate(cursor.getDate() - 1);
+        if (!dates.has(todayKey(cursor))) return 0;
+      }
+
+      let days = 0;
+      while (dates.has(todayKey(cursor))) {
+        days += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      return days;
+    }
+
+    function renderStreak() {
+      const days = streakDays();
+      els.streak.hidden = days === 0;
+      els.streakCount.textContent = `${days} day streak`;
     }
 
     function renderWeekPace() {
