@@ -3,24 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#131314">
+  <meta name="theme-color" content="#09090b">
   <title>&#8203;</title>
   <link rel="icon" id="favicon" href="./favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300..700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #131314;
-      --ink: #e3e3e3;
-      --ink-2: #c4c7c5;
-      --muted: #9aa0a6;
-      --line: #3c4043;
-      --chip: #303134;
-      --hover: rgba(227, 227, 227, 0.08);
-      --surface: #1e1f20;
-      font-family: "Google Sans Flex", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #09090b;
+      --ink: #fafafa;
+      --ink-2: #e4e4e7;
+      --muted: #a1a1aa;
+      --line: #27272a;
+      --chip: #27272a;
+      --hover: rgba(250, 250, 250, 0.08);
+      --surface: #09090b;
+      font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     * {
@@ -37,11 +36,11 @@
     }
 
     button {
-      min-height: 54px;
+      min-height: 44px;
       border: 0;
-      border-radius: 999px;
+      border-radius: 6px;
       font: inherit;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 500;
       cursor: pointer;
     }
@@ -54,12 +53,13 @@
     .app {
       position: relative;
       display: grid;
-      gap: 28px;
+      gap: 24px;
       width: min(720px, calc(100vw - 28px));
-      padding: 44px 30px 28px;
+      padding: 40px 26px 24px;
       border: 1px solid var(--line);
-      border-radius: 16px;
+      border-radius: 12px;
       background: var(--surface);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     }
 
     .timer {
@@ -72,15 +72,15 @@
     .state {
       min-height: 21px;
       color: var(--muted);
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 500;
     }
 
     .time {
       font-variant-numeric: tabular-nums;
-      font-size: clamp(74px, 22vw, 104px);
-      font-weight: 300;
-      line-height: 0.95;
+      font-size: clamp(70px, 20vw, 96px);
+      font-weight: 500;
+      line-height: 1;
       letter-spacing: -0.02em;
     }
 
@@ -91,17 +91,18 @@
 
     .primary {
       background: var(--ink);
-      color: #1f1f1f;
+      color: #18181b;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
 
     .primary:hover {
-      background: #fff;
+      background: var(--ink-2);
     }
 
     .secondary {
       border: 1px solid var(--line);
       background: transparent;
-      color: var(--ink-2);
+      color: var(--ink);
     }
 
     .secondary:hover:not(:disabled) {
@@ -114,66 +115,63 @@
     }
 
     .small-actions button {
-      min-height: 40px;
-      padding: 0 22px;
-      color: var(--ink-2);
+      min-height: 36px;
+      padding: 0 16px;
+      color: var(--ink);
       font-size: 14px;
     }
 
     .streak {
       position: absolute;
-      top: 16px;
-      left: 18px;
+      top: 14px;
+      left: 16px;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       font-size: 12px;
-      font-weight: 500;
-      color: var(--muted);
+      font-weight: 600;
+      color: var(--ink);
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 6px 13px 6px 10px;
+      padding: 3px 10px;
     }
 
     .streak[hidden] {
       display: none;
     }
 
-    .streak .material-symbols-outlined {
-      font-family: "Material Symbols Outlined";
-      font-size: 16px;
-      line-height: 1;
-      color: var(--ink-2);
-      font-variation-settings: "opsz" 20, "wght" 400, "FILL" 1, "GRAD" 0;
+    .streak svg {
+      width: 13px;
+      height: 13px;
     }
 
     .sync-status {
       position: absolute;
-      top: 16px;
-      right: 18px;
+      top: 14px;
+      right: 16px;
       display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
       color: var(--muted);
       font-size: 12px;
       font-weight: 500;
       line-height: 1.3;
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 6px 13px;
+      padding: 3px 10px;
     }
 
     .sync-status::before {
       content: "";
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 999px;
-      background: #f28b82;
+      background: #f87171;
     }
 
     .sync-status[data-status="synced"]::before,
     .sync-status[data-status="syncing"]::before {
-      background: #81c995;
+      background: #4ade80;
     }
 
     .sync-status[data-status="syncing"]::before {
@@ -201,7 +199,7 @@
 
     .pace-row {
       display: grid;
-      grid-template-columns: 78px 1fr 86px;
+      grid-template-columns: 88px 1fr 86px;
       gap: 12px;
       align-items: center;
     }
@@ -211,12 +209,13 @@
       font-size: 13px;
       font-weight: 500;
       line-height: 1.15;
+      white-space: nowrap;
     }
 
     .pace-bar {
       height: 8px;
       border-radius: 999px;
-      background: var(--chip);
+      background: rgba(250, 250, 250, 0.12);
       overflow: hidden;
     }
 
@@ -228,7 +227,7 @@
     }
 
     .pace-fill.past {
-      background: #5f6368;
+      background: #52525b;
     }
 
     .pace-count {
@@ -276,19 +275,19 @@
       place-items: center;
       aspect-ratio: 1;
       min-width: 0;
-      border-radius: 3px;
+      border-radius: 2px;
       background: var(--chip);
       font-size: 9px;
       font-weight: 500;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-      color: var(--ink-2);
+      color: var(--muted);
     }
 
-    .hour.level-1 { background: #3c4043; color: #e3e3e3; }
-    .hour.level-2 { background: #5f6368; color: #e3e3e3; }
-    .hour.level-3 { background: #9aa0a6; color: #1f1f1f; }
-    .hour.level-4 { background: #e8eaed; color: #1f1f1f; }
+    .hour.level-1 { background: #3f3f46; color: #d4d4d8; }
+    .hour.level-2 { background: #71717a; color: #fafafa; }
+    .hour.level-3 { background: #d4d4d8; color: #18181b; }
+    .hour.level-4 { background: #fafafa; color: #18181b; }
 
     .hour-labels {
       display: grid;
@@ -335,7 +334,7 @@
 <body>
   <main class="app" aria-label="Focus session timer">
     <div class="streak" id="streak" hidden>
-      <span class="material-symbols-outlined" aria-hidden="true">local_fire_department</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
       <span id="streakCount"></span>
     </div>
     <section class="timer">
