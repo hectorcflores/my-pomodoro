@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#131314">
   <title>&#8203;</title>
   <link rel="icon" id="favicon" href="./favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -12,14 +12,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
   <style>
     :root {
-      --bg: #fff;
-      --ink: #1f1f1f;
-      --ink-2: #444746;
-      --muted: #5f6368;
-      --line: #e3e3e3;
-      --chip: #f1f3f4;
-      --hover: rgba(31, 31, 31, 0.08);
-      --surface: #fff;
+      --bg: #131314;
+      --ink: #e3e3e3;
+      --ink-2: #c4c7c5;
+      --muted: #9aa0a6;
+      --line: #3c4043;
+      --chip: #303134;
+      --hover: rgba(227, 227, 227, 0.08);
+      --surface: #1e1f20;
       font-family: "Google Sans Flex", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
@@ -91,16 +91,16 @@
 
     .primary {
       background: var(--ink);
-      color: #fff;
+      color: #1f1f1f;
     }
 
     .primary:hover {
-      background: #000;
+      background: #fff;
     }
 
     .secondary {
       border: 1px solid var(--line);
-      background: #fff;
+      background: transparent;
       color: var(--ink-2);
     }
 
@@ -168,12 +168,12 @@
       width: 7px;
       height: 7px;
       border-radius: 999px;
-      background: #c40000;
+      background: #f28b82;
     }
 
     .sync-status[data-status="synced"]::before,
     .sync-status[data-status="syncing"]::before {
-      background: #008000;
+      background: #81c995;
     }
 
     .sync-status[data-status="syncing"]::before {
@@ -228,7 +228,7 @@
     }
 
     .pace-fill.past {
-      background: #b8b8b8;
+      background: #5f6368;
     }
 
     .pace-count {
@@ -285,27 +285,10 @@
       color: var(--ink-2);
     }
 
-    .hour.level-2,
-    .hour.level-3,
-    .hour.level-4 {
-      color: #fff;
-    }
-
-    .hour.level-1 {
-      background: #dadce0;
-    }
-
-    .hour.level-2 {
-      background: #9aa0a6;
-    }
-
-    .hour.level-3 {
-      background: #3c4043;
-    }
-
-    .hour.level-4 {
-      background: #1f1f1f;
-    }
+    .hour.level-1 { background: #3c4043; color: #e3e3e3; }
+    .hour.level-2 { background: #5f6368; color: #e3e3e3; }
+    .hour.level-3 { background: #9aa0a6; color: #1f1f1f; }
+    .hour.level-4 { background: #e8eaed; color: #1f1f1f; }
 
     .hour-labels {
       display: grid;

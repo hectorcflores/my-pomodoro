@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Focus Sessions — dark mode</title>
+  <link rel="icon" href="../app/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300..700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #131314;
+      --surface: #1e1f20;
+      --ink: #e3e3e3;
+      --ink-2: #c4c7c5;
+      --muted: #9aa0a6;
+      --line: #3c4043;
+      --chip: #303134;
+      --hover: rgba(227, 227, 227, 0.08);
+      font-family: "Google Sans Flex", Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    .app {
+      position: relative;
+      display: grid;
+      gap: 28px;
+      width: min(720px, calc(100vw - 28px));
+      padding: 44px 30px 28px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface);
+    }
+
+    .timer {
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      padding: 8px 0 0;
+    }
+
+    .state {
+      min-height: 21px;
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .time {
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(74px, 22vw, 104px);
+      font-weight: 300;
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+    }
+
+    .actions { display: grid; gap: 12px; justify-items: center; }
+
+    button {
+      font: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 999px;
+    }
+
+    .primary {
+      width: 100%;
+      min-height: 54px;
+      border: 0;
+      background: var(--ink);
+      color: #1f1f1f;
+    }
+
+    .primary:hover { background: #fff; }
+
+    .secondary {
+      min-height: 40px;
+      padding: 0 22px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink-2);
+    }
+
+    .secondary:hover { background: var(--hover); }
+
+    .streak {
+      position: absolute;
+      top: 16px;
+      left: 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 13px 6px 10px;
+    }
+
+    .streak .material-symbols-outlined {
+      font-family: "Material Symbols Outlined";
+      font-size: 16px;
+      line-height: 1;
+      color: var(--ink-2);
+      font-variation-settings: "opsz" 20, "wght" 400, "FILL" 1, "GRAD" 0;
+    }
+
+    .sync-status {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 13px;
+    }
+
+    .sync-status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #81c995;
+    }
+
+    .week-pace { display: grid; gap: 11px; }
+
+    .pace-row {
+      display: grid;
+      grid-template-columns: 78px 1fr 86px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pace-label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .pace-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--chip);
+      overflow: hidden;
+    }
+
+    .pace-fill { height: 100%; border-radius: 999px; background: var(--ink); }
+    .pace-fill.past { background: #5f6368; }
+
+    .pace-count {
+      color: var(--ink-2);
+      font-size: 13px;
+      font-weight: 500;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .pace-count.past { color: var(--muted); }
+    .pace-group-end { margin-bottom: 8px; }
+
+    .heatmap { display: grid; gap: 6px; }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: 48px repeat(24, minmax(0, 1fr));
+      gap: 3px;
+      align-items: center;
+    }
+
+    .day-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .hour {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      border-radius: 3px;
+      background: var(--chip);
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--ink-2);
+    }
+
+    .hour.level-1 { background: #3c4043; color: #e3e3e3; }
+    .hour.level-2 { background: #5f6368; color: #e3e3e3; }
+    .hour.level-3 { background: #9aa0a6; color: #1f1f1f; }
+    .hour.level-4 { background: #e8eaed; color: #1f1f1f; }
+
+    .hour-labels {
+      display: grid;
+      grid-template-columns: 48px repeat(24, minmax(0, 1fr));
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .hour-labels span { text-align: center; }
+    .hour-labels .label-12a { grid-column: 2; }
+    .hour-labels .label-6a { grid-column: 8; }
+    .hour-labels .label-12p { grid-column: 14; }
+    .hour-labels .label-6p { grid-column: 20; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="streak"><span class="material-symbols-outlined">local_fire_department</span>12 day streak</div>
+    <section class="timer">
+      <div class="state">3 sessions today</div>
+      <div class="time">30:00</div>
+    </section>
+
+    <section class="actions">
+      <button class="primary" type="button">Start</button>
+      <button class="secondary" type="button">Undo</button>
+    </section>
+
+    <section class="week-pace">
+      <div class="pace-row">
+        <div class="pace-label">Today</div>
+        <div class="pace-bar"><div class="pace-fill" style="width:60%"></div></div>
+        <div class="pace-count">3 sessions</div>
+      </div>
+      <div class="pace-row pace-group-end">
+        <div class="pace-label">Yesterday</div>
+        <div class="pace-bar"><div class="pace-fill past" style="width:40%"></div></div>
+        <div class="pace-count past">2 sessions</div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Week</div>
+        <div class="pace-bar"><div class="pace-fill" style="width:76%"></div></div>
+        <div class="pace-count">19 sessions</div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Last week</div>
+        <div class="pace-bar"><div class="pace-fill past" style="width:64%"></div></div>
+        <div class="pace-count past">16 sessions</div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Last 4 weeks</div>
+        <div class="pace-bar"><div class="pace-fill past" style="width:55%"></div></div>
+        <div class="pace-count past">14 sessions</div>
+      </div>
+    </section>
+
+    <section class="heatmap">
+      <div class="day-grid" id="hourGrid"></div>
+      <div class="hour-labels" aria-hidden="true">
+        <span></span>
+        <span class="label-12a">12a</span>
+        <span class="label-6a">6a</span>
+        <span class="label-12p">12p</span>
+        <span class="label-6p">6p</span>
+      </div>
+    </section>
+
+    <div class="sync-status">Synced</div>
+  </main>
+
+  <script>
+    const grid = document.getElementById("hourGrid");
+    const days = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
+    const seed = [0,0,0,0,0,0,0,1,2,3,4,2,1,1,2,3,2,1,1,1,0,0,0,0];
+    days.forEach((day, dayIndex) => {
+      const label = document.createElement("div");
+      label.className = "day-label";
+      label.textContent = day;
+      grid.appendChild(label);
+      for (let hour = 0; hour < 24; hour += 1) {
+        const cell = document.createElement("div");
+        const level = Math.max(0, seed[hour] - ((dayIndex * 5 + hour) % 3));
+        cell.className = level > 0 ? `hour level-${level}` : "hour";
+        if (level > 0) cell.textContent = level;
+        grid.appendChild(cell);
+      }
+    });
+  </script>
+</body>
+</html>
