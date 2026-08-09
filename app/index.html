@@ -110,15 +110,24 @@
     }
 
     .small-actions {
-      display: grid;
-      justify-items: center;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
     }
 
     .small-actions button {
       min-height: 36px;
-      padding: 0 16px;
+      padding: 0 14px;
       color: var(--ink);
       font-size: 14px;
+    }
+
+    .break-btn {
+      color: var(--muted);
+    }
+
+    .time.break {
+      color: #4ade80;
     }
 
     .streak {
@@ -346,6 +355,10 @@
       <button class="primary" id="mainButton" type="button">Start</button>
       <div class="small-actions">
         <button class="secondary" id="undoButton" type="button">Undo</button>
+        <button class="secondary break-btn" id="break5Button" type="button" data-break-minutes="5">Break 5m</button>
+        <button class="secondary break-btn" id="break10Button" type="button" data-break-minutes="10">Break 10m</button>
+        <button class="secondary break-btn" id="break20Button" type="button" data-break-minutes="20">Break 20m</button>
+        <button class="secondary" id="skipBreakButton" type="button" hidden>Skip break</button>
       </div>
     </section>
 
@@ -404,12 +417,18 @@
     const urlNudgeAfter = Number(params.get("nudge_after"));
     const idleNudgeAfterSeconds = Number.isFinite(urlNudgeAfter) && urlNudgeAfter > 0 ? urlNudgeAfter : 15 * 60;
     const idleNudgeMaxAgeSeconds = idleNudgeAfterSeconds + 75 * 60;
+    const urlBreakNudgeAfter = Number(params.get("break_nudge_after"));
+    const breakNudgeAfterSeconds = Number.isFinite(urlBreakNudgeAfter) && urlBreakNudgeAfter > 0
+      ? urlBreakNudgeAfter
+      : 5 * 60;
 
     const els = {
       time: document.querySelector("#time"),
       state: document.querySelector("#state"),
       mainButton: document.querySelector("#mainButton"),
       undoButton: document.querySelector("#undoButton"),
+      breakButtons: Array.from(document.querySelectorAll("[data-break-minutes]")),
+      skipBreakButton: document.querySelector("#skipBreakButton"),
       syncStatus: document.querySelector("#syncStatus"),
       hourGrid: document.querySelector("#hourGrid"),
       todayFill: document.querySelector("#todayFill"),
@@ -444,11 +463,15 @@
     }
 
     function loadState() {
+      // Breaks are deliberately local-only: they never reach Supabase or the stats.
       const fallback = {
         sessions: [],
         activeSession: null,
         completionPending: false,
-        nudgedSessionId: null
+        nudgedSessionId: null,
+        activeBreak: null,
+        breakEndedAt: null,
+        breakNudgeSent: false
       };
 
       try {
@@ -459,7 +482,10 @@
           activeSession: stored.activeSession || null,
           completionPending: Boolean(stored.completionPending)
             && sessions.some((session) => session.date === todayKey()),
-          nudgedSessionId: stored.nudgedSessionId || null
+          nudgedSessionId: stored.nudgedSessionId || null,
+          activeBreak: stored.activeBreak || null,
+          breakEndedAt: stored.breakEndedAt || null,
+          breakNudgeSent: Boolean(stored.breakNudgeSent)
         };
       } catch {
         return fallback;
@@ -535,9 +561,75 @@
         pausedRemainingSeconds: null
       };
       state.completionPending = false;
+      clearBreak();
       startTick();
       render();
       saveState();
+    }
+
+    function startBreak(minutes) {
+      if (state.activeSession) return;
+      prepareAlerts();
+      state.activeBreak = {
+        startedAt: new Date().toISOString(),
+        durationSeconds: minutes * 60
+      };
+      state.breakEndedAt = null;
+      state.breakNudgeSent = false;
+      startTick();
+      render();
+      saveState();
+    }
+
+    function clearBreak() {
+      state.activeBreak = null;
+      state.breakEndedAt = null;
+      state.breakNudgeSent = false;
+    }
+
+    function skipBreak() {
+      clearBreak();
+      stopTickIfIdle();
+      render();
+      saveState();
+    }
+
+    function breakRemainingSeconds() {
+      if (!state.activeBreak) return 0;
+      const startedAt = new Date(state.activeBreak.startedAt).getTime();
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      return Math.max(0, state.activeBreak.durationSeconds - elapsed);
+    }
+
+    function settleExpiredBreak() {
+      if (!state.activeBreak || breakRemainingSeconds() > 0) return;
+
+      const endedAt = new Date(state.activeBreak.startedAt).getTime()
+        + state.activeBreak.durationSeconds * 1000;
+      // A break that ran out while the tab was closed is stale; settle it quietly.
+      const stale = Date.now() - endedAt > breakNudgeAfterSeconds * 1000;
+
+      state.activeBreak = null;
+      state.breakEndedAt = stale ? null : new Date(endedAt).toISOString();
+      state.breakNudgeSent = false;
+      stopTickIfIdle();
+      saveState();
+
+      if (stale) return;
+      playDoubleDing();
+      showNotification("Break over", "Time to get back to work.");
+    }
+
+    function maybeShowBreakNudge() {
+      if (state.breakNudgeSent || !state.breakEndedAt) return;
+      if (state.activeSession || state.activeBreak) return;
+
+      const idleSeconds = (Date.now() - new Date(state.breakEndedAt).getTime()) / 1000;
+      if (idleSeconds < breakNudgeAfterSeconds) return;
+
+      state.breakNudgeSent = true;
+      saveState();
+      showNotification("Still on break?", "Your break ended 5 minutes ago. Start a session.");
     }
 
     function pauseSession() {
@@ -629,6 +721,7 @@
       stopTick();
       tick = setInterval(() => {
         settleExpiredSession();
+        settleExpiredBreak();
         render();
         saveState();
       }, 1000);
@@ -639,6 +732,11 @@
         clearInterval(tick);
         tick = null;
       }
+    }
+
+    function stopTickIfIdle() {
+      const sessionRunning = state.activeSession && state.activeSession.pausedRemainingSeconds === null;
+      if (!sessionRunning && !state.activeBreak) stopTick();
     }
 
     function sessionsToday() {
@@ -661,13 +759,23 @@
 
     function render() {
       settleExpiredSession();
+      settleExpiredBreak();
       const today = sessionsToday();
+      const onBreak = Boolean(state.activeBreak);
       const remaining = remainingSeconds();
 
-      els.time.textContent = formatTime(remaining);
-      els.state.textContent = sessionsLabel(today.length) + " today";
+      els.time.textContent = formatTime(onBreak ? breakRemainingSeconds() : remaining);
+      els.time.classList.toggle("break", onBreak);
+      els.state.textContent = onBreak
+        ? `On a break · ${sessionsLabel(today.length)} today`
+        : sessionsLabel(today.length) + " today";
       els.mainButton.textContent = buttonLabel();
       els.undoButton.disabled = today.length === 0;
+      els.undoButton.hidden = onBreak;
+      els.breakButtons.forEach((button) => {
+        button.hidden = onBreak || Boolean(state.activeSession);
+      });
+      els.skipBreakButton.hidden = !onBreak;
       renderStreak();
       renderWeekPace();
       renderHeatmap();
@@ -676,7 +784,7 @@
     }
 
     function buttonLabel() {
-      if (!state.activeSession) return state.completionPending ? "Start next" : "Start";
+      if (!state.activeSession) return state.completionPending || state.activeBreak ? "Start next" : "Start";
       return state.activeSession.pausedRemainingSeconds !== null ? "Resume" : "Pause";
     }
 
@@ -734,6 +842,11 @@
     }
 
     function updateTabTitle(remaining) {
+      if (state.activeBreak) {
+        document.title = `Break ${formatTime(breakRemainingSeconds())}`;
+        return;
+      }
+
       if (state.completionPending && !state.activeSession) {
         document.title = "Done";
         return;
@@ -814,18 +927,24 @@
       harmonic.stop(start + duration + 0.02);
     }
 
-    function showCompletionNotification() {
-      if (!("Notification" in window) || Notification.permission !== "granted") return;
+    function showNotification(title, body) {
+      if (!("Notification" in window) || Notification.permission !== "granted") return null;
 
-      new Notification("Done", {
-        body: "Focus session complete.",
-        icon: "./favicon.svg"
-      });
+      const notification = new Notification(title, { body, icon: "./favicon.svg" });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+      return notification;
+    }
+
+    function showCompletionNotification() {
+      showNotification("Done", "Focus session complete.");
     }
 
     function maybeShowIdleNudge() {
       if (!("Notification" in window) || Notification.permission !== "granted") return;
-      if (state.activeSession) return;
+      if (state.activeSession || state.activeBreak) return;
 
       const last = sessionsToday().reduce((latest, session) => {
         if (!latest) return session;
@@ -839,15 +958,7 @@
 
       state.nudgedSessionId = last.id;
       saveState();
-
-      const notification = new Notification("Still working?", {
-        body: "No session running. Start one so it counts.",
-        icon: "./favicon.svg"
-      });
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
+      showNotification("Still working?", "No session running. Start one so it counts.");
     }
 
     function sessionsLabel(count) {
@@ -1041,6 +1152,10 @@
 
     els.mainButton.addEventListener("click", handleMainAction);
     els.undoButton.addEventListener("click", undoLast);
+    els.skipBreakButton.addEventListener("click", skipBreak);
+    els.breakButtons.forEach((button) => {
+      button.addEventListener("click", () => startBreak(Number(button.dataset.breakMinutes)));
+    });
 
     window.addEventListener("beforeunload", saveState);
     window.addEventListener("focus", () => {
@@ -1054,12 +1169,15 @@
       syncConfig = await configureSyncFromUrl();
       setSyncStatus(isSyncEnabled() ? "Syncing" : "Local only", isSyncEnabled() ? "syncing" : "local");
 
-      if (state.activeSession && state.activeSession.pausedRemainingSeconds === null) {
+      if ((state.activeSession && state.activeSession.pausedRemainingSeconds === null) || state.activeBreak) {
         startTick();
       }
 
       render();
-      setInterval(maybeShowIdleNudge, 30 * 1000);
+      setInterval(() => {
+        maybeShowBreakNudge();
+        maybeShowIdleNudge();
+      }, 30 * 1000);
 
       if (params.get("test_notification")) {
         requestNotificationPermission();
