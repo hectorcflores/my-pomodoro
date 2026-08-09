@@ -990,10 +990,11 @@
 
     function renderWeekPace() {
       // Weeks run Saturday 00:00 -> Friday 24:00, local time (same as the weekly email).
+      // "This week" and "Today" are in-progress periods; "Last week", "Last 4 weeks",
+      // and "Yesterday" are always full, completed periods.
       const now = new Date();
       const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 1) % 7));
-      const elapsed = now.getTime() - weekStart.getTime();
       const lastWeekStart = weekStart.getTime() - 7 * 86400 * 1000;
 
       const countBetween = (lo, hi) => state.sessions.filter((session) => {
@@ -1002,11 +1003,11 @@
       }).length;
 
       const thisWeek = countBetween(weekStart.getTime(), now.getTime());
-      const lastWeek = countBetween(lastWeekStart, lastWeekStart + elapsed);
+      const lastWeek = countBetween(lastWeekStart, lastWeekStart + 7 * 86400 * 1000);
       let last4Total = 0;
       for (let weeksBack = 1; weeksBack <= 4; weeksBack += 1) {
         const start = weekStart.getTime() - weeksBack * 7 * 86400 * 1000;
-        last4Total += countBetween(start, start + elapsed);
+        last4Total += countBetween(start, start + 7 * 86400 * 1000);
       }
       const last4Avg = Math.round(last4Total / 4);
       const paceMax = Math.max(thisWeek, lastWeek, last4Avg, 1);
@@ -1019,10 +1020,9 @@
       els.last4WeeksFill.style.width = `${(last4Avg / paceMax) * 100}%`;
 
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const dayElapsed = now.getTime() - todayStart;
       const yesterdayStart = todayStart - 86400 * 1000;
       const today = countBetween(todayStart, now.getTime());
-      const yesterday = countBetween(yesterdayStart, yesterdayStart + dayElapsed);
+      const yesterday = countBetween(yesterdayStart, todayStart);
       const dayMax = Math.max(today, yesterday, 1);
 
       els.todayCount.textContent = sessionsLabel(today);
