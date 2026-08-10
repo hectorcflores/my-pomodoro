@@ -19,6 +19,7 @@ alter table public.focus_sessions enable row level security;
 
 drop function if exists public.list_focus_sessions(text);
 drop function if exists public.create_focus_session(text, timestamptz, timestamptz, integer, text);
+drop function if exists public.create_focus_session(text, timestamptz, timestamptz, integer, text, uuid);
 drop function if exists public.undo_latest_focus_session(text);
 drop function if exists public.undo_latest_focus_session(text, timestamptz);
 
@@ -54,7 +55,8 @@ create or replace function public.create_focus_session(
   p_started_at timestamptz,
   p_completed_at timestamptz,
   p_duration_seconds integer,
-  p_client_id text
+  p_client_id text,
+  p_id uuid default null
 )
 returns table (
   id uuid,
@@ -69,6 +71,7 @@ security definer
 set search_path = public
 as $function$
   insert into public.focus_sessions (
+    id,
     sync_key_hash,
     started_at,
     completed_at,
@@ -76,12 +79,14 @@ as $function$
     client_id
   )
   values (
+    coalesce(p_id, gen_random_uuid()),
     p_sync_key_hash,
     p_started_at,
     p_completed_at,
     p_duration_seconds,
     p_client_id
   )
+  on conflict (id) do nothing
   returning
     public.focus_sessions.id,
     public.focus_sessions.started_at,
@@ -148,5 +153,5 @@ $function$;
 
 revoke all on public.focus_sessions from anon, authenticated;
 grant execute on function public.list_focus_sessions(text) to anon;
-grant execute on function public.create_focus_session(text, timestamptz, timestamptz, integer, text) to anon;
+grant execute on function public.create_focus_session(text, timestamptz, timestamptz, integer, text, uuid) to anon;
 grant execute on function public.undo_latest_focus_session(text, timestamptz) to anon;

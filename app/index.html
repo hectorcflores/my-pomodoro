@@ -1096,7 +1096,9 @@
           p_started_at: session.startedAt,
           p_completed_at: session.completedAt,
           p_duration_seconds: session.durationSeconds,
-          p_client_id: session.clientId
+          p_client_id: session.clientId,
+          // Same session id from any tab -> the server keeps only the first save.
+          p_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session.id) ? session.id : null
         });
         await loadRemoteSessions();
       } catch (error) {
