@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Endel-like notification sounds</title>
+<style>
+  :root { --bg:#09090b; --card:#18181b; --border:#27272a; --text:#fafafa; --muted:#a1a1aa; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,sans-serif; padding:40px 24px 80px; }
+  .wrap { max-width:640px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:28px; }
+  .opt { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:14px; display:flex; align-items:center; gap:18px; }
+  .opt button { min-width:96px; min-height:44px; border:0; border-radius:8px; background:var(--text); color:#18181b; font:inherit; font-weight:600; cursor:pointer; }
+  .opt button:hover { background:#e4e4e7; }
+  .opt h2 { font-size:15px; margin:0 0 2px; }
+  .opt p { color:var(--muted); font-size:13px; margin:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Endel-like sounds — pick one</h1>
+  <div class="sub">Soft, ambient, slow swells — no dings. Click Play on each; all notifications would use the one you pick.</div>
+  <div id="list"></div>
+</div>
+
+<script>
+let ctx;
+function ac() { ctx = ctx || new AudioContext(); if (ctx.state === "suspended") ctx.resume(); return ctx; }
+
+// Soft sine voice with slow attack/release through a lowpass
+function voice(freq, at, dur, peak, attack, cutoff = 2000, type = "sine", detune = 0) {
+  const c = ac(), t = c.currentTime + at;
+  const o = c.createOscillator(), g = c.createGain(), f = c.createBiquadFilter();
+  o.type = type; o.frequency.setValueAtTime(freq, t); o.detune.setValueAtTime(detune, t);
+  f.type = "lowpass"; f.frequency.setValueAtTime(cutoff, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(f); f.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
+// Filtered noise swell
+function breath(at, dur, peak, freq, q = 1.2) {
+  const c = ac(), t = c.currentTime + at;
+  const len = Math.ceil(c.sampleRate * (dur + 0.1));
+  const buf = c.createBuffer(1, len, c.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = c.createBufferSource(); src.buffer = buf;
+  const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.setValueAtTime(freq, t); f.Q.setValueAtTime(q, t);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.45);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(c.destination);
+  src.start(t); src.stop(t + dur + 0.05);
+}
+
+const SOUNDS = [
+  { name: "1 — Warm pad", desc: "A soft major chord breathing in and out over two seconds.",
+    play: () => { voice(261.6, 0, 2.2, 0.16, 0.6); voice(329.6, 0, 2.2, 0.12, 0.7); voice(392, 0, 2.2, 0.10, 0.8); } },
+  { name: "2 — Deep breath", desc: "A airy noise swell, like a slow exhale. No pitch at all.",
+    play: () => { breath(0, 2.0, 0.22, 600, 0.8); breath(0.1, 1.8, 0.08, 1400, 1.5); } },
+  { name: "3 — Sub pulse", desc: "Two gentle deep pulses you feel more than hear.",
+    play: () => { voice(110, 0, 0.9, 0.4, 0.15, 400); voice(110, 0.8, 1.2, 0.4, 0.15, 400); } },
+  { name: "4 — Glass drift", desc: "Three high, quiet shimmer tones entering one after another.",
+    play: () => { voice(1318.5, 0, 1.8, 0.06, 0.4, 4000); voice(1567.9, 0.35, 1.8, 0.05, 0.4, 4000); voice(1975.5, 0.7, 2.0, 0.04, 0.4, 4000); } },
+  { name: "5 — Tide", desc: "A wave: noise rising with a low tone underneath, then receding.",
+    play: () => { breath(0, 2.4, 0.18, 450, 0.7); voice(130.8, 0.2, 2.2, 0.12, 0.8, 500); } },
+  { name: "6 — Haze chord", desc: "Slightly detuned mid tones, blurred and dreamlike.",
+    play: () => { voice(440, 0, 2.0, 0.10, 0.6, 1200, "sine", -8); voice(440, 0, 2.0, 0.10, 0.6, 1200, "sine", 8); voice(554.4, 0.15, 1.9, 0.07, 0.7, 1200, "sine", -5); } },
+  { name: "7 — Night bloom", desc: "One low muted note that blooms briefly and dissolves.",
+    play: () => { voice(220, 0, 1.8, 0.22, 0.35, 700, "triangle"); voice(660, 0.1, 1.4, 0.04, 0.5, 2000); } },
+];
+
+const list = document.getElementById("list");
+for (const s of SOUNDS) {
+  const div = document.createElement("div");
+  div.className = "opt";
+  div.innerHTML = `<button>Play</button><div><h2>${s.name}</h2><p>${s.desc}</p></div>`;
+  div.querySelector("button").addEventListener("click", s.play);
+  list.appendChild(div);
+}
+</script>
+</body>
+</html>

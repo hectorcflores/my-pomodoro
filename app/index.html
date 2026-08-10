@@ -616,7 +616,6 @@
       saveState();
 
       if (stale) return;
-      playDoubleDing();
       showNotification("Break over", "Time to get back to work.");
     }
 
@@ -789,7 +788,7 @@
     }
 
     // Tab tomato: shadcn-style tile whose border traces white clockwise from the top,
-    // advancing one quarter each time a quarter of the session completes.
+    // advancing a tenth each time 10% of the session completes.
     const faviconLink = document.getElementById("favicon");
     let faviconProgress = null;
 
@@ -806,7 +805,7 @@
       let next = null;
       if (state.activeSession) {
         const progress = 1 - remaining / state.activeSession.durationSeconds;
-        next = Math.min(4, Math.floor(progress * 4)) * 25;
+        next = Math.min(10, Math.floor(progress * 10)) * 10;
       }
 
       if (next === faviconProgress) return;
@@ -857,54 +856,55 @@
     }
 
     function alertCompletion() {
-      playDoubleDing();
       showCompletionNotification();
     }
 
-    function playDoubleDing() {
+    // Glass rise: four soft shimmer tones climbing upward. Played only when a
+    // notification banner is actually shown. If the browser has the page's audio
+    // suspended, skip entirely — scheduling tones then would make them burst out
+    // later at the next click instead of playing now.
+    function playChime() {
       try {
         prepareAudio();
         if (!audioContext) return;
 
-        playTone(784, 0);
-        playTone(1046, 0.32);
+        Promise.resolve(audioContext.resume()).then(() => {
+          if (audioContext.state !== "running") return;
+          chimeVoice(1046.5, 0, 1.6, 0.06, 0.35);
+          chimeVoice(1318.5, 0.3, 1.6, 0.055, 0.35);
+          chimeVoice(1567.9, 0.6, 1.7, 0.05, 0.35);
+          chimeVoice(2093, 0.9, 2.0, 0.04, 0.4);
+        }).catch(() => {});
       } catch (error) {
         console.warn(error);
       }
     }
 
-    function playTone(frequency, delay) {
+    function chimeVoice(frequency, delay, duration, peak, attack) {
       const start = audioContext.currentTime + delay;
-      const duration = 0.28;
       const oscillator = audioContext.createOscillator();
-      const harmonic = audioContext.createOscillator();
+      const filter = audioContext.createBiquadFilter();
       const gain = audioContext.createGain();
-      const harmonicGain = audioContext.createGain();
 
-      oscillator.type = "triangle";
+      oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(frequency, start);
-      harmonic.type = "sine";
-      harmonic.frequency.setValueAtTime(frequency * 2, start);
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(4000, start);
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.32, start + 0.025);
+      gain.gain.exponentialRampToValueAtTime(peak, start + attack);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      harmonicGain.gain.setValueAtTime(0.0001, start);
-      harmonicGain.gain.exponentialRampToValueAtTime(0.08, start + 0.025);
-      harmonicGain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
-      oscillator.connect(gain);
-      harmonic.connect(harmonicGain);
+      oscillator.connect(filter);
+      filter.connect(gain);
       gain.connect(audioContext.destination);
-      harmonicGain.connect(audioContext.destination);
       oscillator.start(start);
-      harmonic.start(start);
-      oscillator.stop(start + duration + 0.02);
-      harmonic.stop(start + duration + 0.02);
+      oscillator.stop(start + duration + 0.05);
     }
 
     function showNotification(title, body) {
       if (!("Notification" in window) || Notification.permission !== "granted") return null;
 
+      playChime();
       const notification = new Notification(title, { body, icon: "./favicon.svg?v=2" });
       notification.onclick = () => {
         window.focus();
@@ -914,7 +914,7 @@
     }
 
     function showCompletionNotification() {
-      showNotification("Done", "Focus session complete.");
+      showNotification("Done", `Focus session complete. ${sessionsLabel(sessionsToday().length)} today.`);
     }
 
     function maybeShowIdleNudge() {
@@ -1163,10 +1163,7 @@
             alert("Notifications are not allowed for this site in Chrome.");
             return;
           }
-          new Notification("Test", {
-            body: "If you can read this, banners work.",
-            icon: "./favicon.svg?v=2"
-          });
+          showNotification("Test", "If you can read this, banners work.");
         }, 3000);
       }
 
