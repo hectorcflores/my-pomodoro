@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pinned tab — progress on the tile tomato (option E)</title>
+<style>
+  :root {
+    --bg: #09090b;
+    --card: #18181b;
+    --border: #27272a;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --tabbar: #202124;
+    --tab: #35363a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 40px 24px 80px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 36px; }
+  .option {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .option h2 { font-size: 16px; margin: 0 0 2px; }
+  .option .desc { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .strips { display: flex; flex-direction: column; gap: 10px; }
+  .striprow { display: flex; align-items: center; gap: 16px; }
+  .striplabel { width: 130px; font-size: 11px; color: var(--muted); text-align: right; flex-shrink: 0; }
+  .tabstrip {
+    background: var(--tabbar);
+    border-radius: 8px;
+    padding: 6px 8px;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .pinned {
+    background: var(--tab);
+    border-radius: 7px;
+    width: 32px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pinned.other { background: transparent; }
+  .pinned img { width: 16px; height: 16px; display: block; }
+  .fatab {
+    background: transparent;
+    border-radius: 7px;
+    padding: 7px 14px 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #9aa0a6;
+  }
+  .zoomrow { display: flex; gap: 28px; padding: 16px 0 0; }
+  .zoom { text-align: center; }
+  .zoom img { width: 72px; height: 72px; display: block; margin: 0 auto 6px; }
+  .zoom span { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Pinned tab: progress on the tile tomato</h1>
+  <div class="sub">Your pick (option E) sits <strong>pinned at real 16 px</strong> between other pinned favicons — no title, the icon does all the work. Each card is one way to show progress. States: idle → just started → halfway → almost done.</div>
+  <div id="options"></div>
+</div>
+
+<script>
+const FG = "#fafafa", ZINC7 = "#3f3f46", ZINC9 = "#18181b", RED = "#ef4444";
+
+function svg(inner) {
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${inner}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(s)}`;
+}
+
+function outlineTomato(stroke, sw) {
+  return `
+    <g fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="14.5" r="7.5"/>
+      <path d="M12 7 v-3"/>
+      <path d="M12 7 c -1.5 -2.5 -4.5 -2.5 -6 -1.5 c 2 .5 3.5 1.5 6 1.5 c 2.5 0 4 -1 6 -1.5 c -1.5 -1 -4.5 -1 -6 1.5 z"/>
+    </g>`;
+}
+
+const tile = `<rect x="0.5" y="0.5" width="23" height="23" rx="5.5" fill="${ZINC9}" stroke="${ZINC7}" stroke-width="1"/>`;
+const tomatoInTile = (color = FG) =>
+  `<g transform="translate(12 12) scale(0.72) translate(-12 -12)">${outlineTomato(color, 2.4)}</g>`;
+
+// Base icon (idle)
+const baseIcon = svg(tile + tomatoInTile());
+
+// --- Progress variants: p in 0..1, p === null means idle ---
+
+// A. Tile border traces red clockwise
+function optBorder(p) {
+  if (p === null) return baseIcon;
+  return svg(`
+    ${tile}
+    <rect x="1" y="1" width="22" height="22" rx="5.5" fill="none"
+      stroke="${RED}" stroke-width="2" pathLength="100"
+      stroke-dasharray="${p * 100} 100" stroke-linecap="round"/>
+    ${tomatoInTile()}`);
+}
+
+// B. Tomato itself fills red from the bottom
+function optTomatoFill(p) {
+  if (p === null) return baseIcon;
+  const topY = 22 - 15.5 * p;
+  return svg(`
+    ${tile}
+    <defs><clipPath id="c"><rect x="0" y="${topY}" width="24" height="24"/></clipPath></defs>
+    <g transform="translate(12 12) scale(0.72) translate(-12 -12)" clip-path="url(#c)">
+      <circle cx="12" cy="14.5" r="7.5" fill="${RED}"/>
+    </g>
+    ${tomatoInTile()}`);
+}
+
+// C. Tile background fills red behind the tomato
+function optBgFill(p) {
+  if (p === null) return baseIcon;
+  const topY = 24 - 24 * p;
+  return svg(`
+    ${tile}
+    <defs><clipPath id="t"><rect x="0.5" y="${topY}" width="23" height="23" rx="0"/></clipPath>
+    <clipPath id="r"><rect x="0.5" y="0.5" width="23" height="23" rx="5.5"/></clipPath></defs>
+    <g clip-path="url(#r)"><rect x="0.5" y="${topY}" width="23" height="24" fill="${RED}" opacity="0.55"/></g>
+    ${tomatoInTile()}`);
+}
+
+// D. Small red pie in the corner
+function optPie(p) {
+  if (p === null) return baseIcon;
+  const cx = 18.2, cy = 18.2, r = 4.6;
+  const a = p * 2 * Math.PI - Math.PI / 2;
+  const large = p > 0.5 ? 1 : 0;
+  const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+  const pie = p >= 0.999
+    ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${RED}"/>`
+    : `<path d="M ${cx} ${cy} L ${cx} ${cy - r} A ${r} ${r} 0 ${large} 1 ${x} ${y} Z" fill="${RED}"/>`;
+  return svg(`
+    ${tile}
+    <g transform="translate(11 11) scale(0.62) translate(-12 -12)">${outlineTomato(FG, 2.6)}</g>
+    <circle cx="${cx}" cy="${cy}" r="${r + 1.2}" fill="${ZINC9}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${ZINC7}"/>
+    ${pie}`);
+}
+
+// --- neighbor pinned favicons (generic placeholders) ---
+const mailIcon = svg(`<rect x="2" y="5" width="20" height="14" rx="2" fill="#ea4335"/><path d="M3 6.5 l9 6.5 9-6.5" stroke="#fff" stroke-width="1.8" fill="none"/>`);
+const calIcon = svg(`<rect x="3" y="4" width="18" height="17" rx="2" fill="#4285f4"/><rect x="3" y="4" width="18" height="5" fill="#1a67d2"/><text x="12" y="18" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#fff">31</text>`);
+const ghIcon = svg(`<circle cx="12" cy="12" r="10" fill="#e6edf3"/><circle cx="12" cy="12" r="4.5" fill="#202124"/>`);
+
+const STATES = [
+  { p: null, label: "idle (no session)" },
+  { p: 0.04, label: "just started" },
+  { p: 0.5,  label: "halfway" },
+  { p: 0.92, label: "almost done" },
+];
+
+const OPTIONS = [
+  { name: "A — Border traces red", fn: optBorder,
+    desc: "The tile's rounded border draws itself in red, clockwise from the top. The tomato never changes." },
+  { name: "B — Tomato turns red", fn: optTomatoFill,
+    desc: "The outline tomato fills with red from the bottom up — it literally ripens inside the tile. Spiritual successor of today's icon." },
+  { name: "C — Tile floods red", fn: optBgFill,
+    desc: "The tile background rises like a tank filling behind the white tomato." },
+  { name: "D — Corner pie clock", fn: optPie,
+    desc: "Tomato shifts up-left; a tiny red pie chart in the corner acts as a clock." },
+];
+
+const root = document.getElementById("options");
+for (const opt of OPTIONS) {
+  const strip = STATES.map(s => `<div class="pinned"><img src="${opt.fn(s.p)}"></div>`).join("");
+  const zooms = STATES.map(s => `
+    <div class="zoom"><img src="${opt.fn(s.p)}"><span>${s.label}</span></div>`).join("");
+  root.insertAdjacentHTML("beforeend", `
+    <div class="option">
+      <h2>${opt.name}</h2>
+      <p class="desc">${opt.desc}</p>
+      <div class="strips">
+        <div class="striprow">
+          <div class="striplabel">in the tab bar →</div>
+          <div class="tabstrip">
+            <div class="pinned other"><img src="${mailIcon}"></div>
+            <div class="pinned other"><img src="${calIcon}"></div>
+            ${strip}
+            <div class="pinned other"><img src="${ghIcon}"></div>
+            <div class="fatab">Some other tab…</div>
+          </div>
+        </div>
+      </div>
+      <div class="zoomrow"><div class="striplabel"></div>${zooms}</div>
+    </div>`);
+}
+</script>
+</body>
+</html>

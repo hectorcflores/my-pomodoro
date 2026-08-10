@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tab icon options — progress on a red tomato</title>
+<style>
+  :root {
+    --bg: #09090b;
+    --card: #18181b;
+    --border: #27272a;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --tabbar: #202124;
+    --tab: #35363a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 40px 24px 80px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 36px; }
+  .option {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .option h2 { font-size: 16px; margin: 0 0 2px; }
+  .option .desc { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .tabstrip {
+    background: var(--tabbar);
+    border-radius: 10px 10px 0 0;
+    padding: 8px 8px 0;
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+  }
+  .tab {
+    background: var(--tab);
+    border-radius: 8px 8px 0 0;
+    padding: 7px 14px 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #e8eaed;
+    white-space: nowrap;
+    min-width: 150px;
+  }
+  .tab img { width: 16px; height: 16px; display: block; }
+  .tab .t { overflow: hidden; text-overflow: ellipsis; }
+  .zoomrow {
+    display: flex;
+    gap: 28px;
+    padding: 16px 8px 4px;
+    align-items: flex-end;
+  }
+  .zoom { text-align: center; }
+  .zoom img { width: 64px; height: 64px; display: block; margin: 0 auto 6px; image-rendering: auto; }
+  .zoom span { font-size: 11px; color: var(--muted); }
+  .note { font-size: 12px; color: var(--muted); margin-top: 10px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tab icon: always-red tomato + progress</h1>
+  <div class="sub">Each row is a fake Chrome tab strip at <strong>real 16 px icon size</strong> — squint like you would at your actual tabs. Below each strip, the same icons zoomed to 64 px. States shown: just started → halfway → almost done.</div>
+  <div id="options"></div>
+</div>
+
+<script>
+// ---------- shared pieces ----------
+const RED = "#e5482f", RED_DK = "#c92d2f", GREEN = "#3f8f2b", GRAY = "#4a4a4f";
+
+// Simple bold tomato, sized/positioned via scale s and offset
+function tomato(s = 1, cx = 32, cy = 36) {
+  const r = 24 * s;
+  return `
+    <ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${r * 0.92}" fill="${RED}"/>
+    <ellipse cx="${cx - r * 0.35}" cy="${cy - r * 0.3}" rx="${r * 0.28}" ry="${r * 0.2}" fill="#ff7a52" opacity="0.8"/>
+    <path d="M ${cx} ${cy - r * 0.95}
+             l ${-9 * s} ${-6 * s} l ${4 * s} ${7 * s}
+             l ${-11 * s} ${-2 * s} l ${9 * s} ${7 * s}
+             l ${7 * s} ${-2 * s} l ${7 * s} ${2 * s}
+             l ${9 * s} ${-7 * s} l ${-11 * s} ${2 * s}
+             l ${4 * s} ${-7 * s} z" fill="${GREEN}"/>`;
+}
+
+function svg(inner) {
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${inner}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(s)}`;
+}
+
+// ---------- option renderers: (progress 0..1, minutesLeft) -> data URI ----------
+
+// A. Progress ring around a smaller tomato
+function optRing(p) {
+  const r = 28, c = 2 * Math.PI * r;
+  return svg(`
+    ${tomato(0.72, 32, 36)}
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="${GRAY}" stroke-width="7"/>
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="#ffffff" stroke-width="7"
+      stroke-dasharray="${c * p} ${c}" stroke-linecap="round"
+      transform="rotate(-90 32 32)"/>`);
+}
+
+// B. Tomato fills up with red from the bottom
+function optFill(p) {
+  const topY = 64 - 58 * p;
+  return svg(`
+    <defs><clipPath id="c"><rect x="0" y="${topY}" width="64" height="64"/></clipPath></defs>
+    <g opacity="0.28">${tomato(1)}</g>
+    <g clip-path="url(#c)">${tomato(1)}</g>`);
+}
+
+// C. Full tomato + minutes badge (bottom-right)
+function optBadge(p, mins) {
+  return svg(`
+    ${tomato(0.95, 30, 34)}
+    <rect x="28" y="34" width="36" height="30" rx="8" fill="#111114" stroke="#ffffff" stroke-width="3"/>
+    <text x="46" y="58" text-anchor="middle" font-family="Arial, sans-serif"
+      font-size="26" font-weight="900" fill="#ffffff">${mins}</text>`);
+}
+
+// D. Big number ON the tomato
+function optNumber(p, mins) {
+  return svg(`
+    ${tomato(1)}
+    <text x="32" y="50" text-anchor="middle" font-family="Arial, sans-serif"
+      font-size="34" font-weight="900" fill="#ffffff"
+      stroke="#7a1512" stroke-width="2" paint-order="stroke">${mins}</text>`);
+}
+
+// E. Full tomato + progress bar underneath
+function optBar(p) {
+  return svg(`
+    ${tomato(0.85, 32, 30)}
+    <rect x="4" y="54" width="56" height="10" rx="5" fill="${GRAY}"/>
+    <rect x="4" y="54" width="${Math.max(10, 56 * p)}" height="10" rx="5" fill="#ffffff"/>`);
+}
+
+// ---------- page assembly ----------
+const STATES = [
+  { p: 0.04, mins: 25, label: "just started · 25 min left" },
+  { p: 0.5,  mins: 13, label: "halfway · 13 min left" },
+  { p: 0.92, mins: 2,  label: "almost done · 2 min left" },
+];
+
+const OPTIONS = [
+  { name: "A — Progress ring", desc: "Tomato stays red; a white ring around it fills clockwise.", fn: optRing,
+    note: "The ring reads well even at 16 px; the tomato gets a bit smaller." },
+  { name: "B — Tomato fills up", desc: "Faint tomato silhouette; solid red rises from the bottom as the session advances. Closest to today's ripening, but always red.", fn: optFill,
+    note: "No numbers to read — you judge progress by how full the tomato is." },
+  { name: "C — Minutes badge", desc: "Full red tomato with a small dark badge showing minutes left.", fn: optBadge,
+    note: "Two digits in a corner badge get tiny at 16 px — this is the readability risk you mentioned." },
+  { name: "D — Big number on tomato", desc: "Minutes left written big, directly on the tomato. (No 'm' suffix — it doesn't fit legibly.)", fn: optNumber,
+    note: "Biggest possible digits, but they cover most of the tomato." },
+  { name: "E — Progress bar below", desc: "Red tomato on top, a thin white bar filling underneath.", fn: optBar,
+    note: "Similar idea to the ring, but keeps the tomato round shape untouched." },
+];
+
+const root = document.getElementById("options");
+for (const opt of OPTIONS) {
+  const tabs = STATES.map(s => `
+    <div class="tab"><img src="${opt.fn(s.p, s.mins)}"><span class="t">${s.mins}:00 · Pomodoro</span></div>`).join("");
+  const zooms = STATES.map(s => `
+    <div class="zoom"><img src="${opt.fn(s.p, s.mins)}"><span>${s.label}</span></div>`).join("");
+  root.insertAdjacentHTML("beforeend", `
+    <div class="option">
+      <h2>${opt.name}</h2>
+      <p class="desc">${opt.desc}</p>
+      <div class="tabstrip">${tabs}</div>
+      <div class="zoomrow">${zooms}</div>
+      <div class="note">${opt.note}</div>
+    </div>`);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tab icon — shadcn-style tomato options</title>
+<style>
+  :root {
+    --bg: #09090b;
+    --card: #18181b;
+    --border: #27272a;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --tabbar: #202124;
+    --tab: #35363a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 40px 24px 80px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 36px; }
+  .option {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .option h2 { font-size: 16px; margin: 0 0 2px; }
+  .option .desc { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .row { display: flex; gap: 24px; align-items: center; }
+  .tabstrip {
+    background: var(--tabbar);
+    border-radius: 10px 10px 0 0;
+    padding: 8px 8px 0;
+    display: flex;
+    gap: 2px;
+    flex: 1;
+  }
+  .tab {
+    background: var(--tab);
+    border-radius: 8px 8px 0 0;
+    padding: 7px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tab.inactive { background: transparent; }
+  .tab img { width: 16px; height: 16px; display: block; }
+  .zoom { text-align: center; flex-shrink: 0; }
+  .zoom img { width: 72px; height: 72px; display: block; margin: 0 auto 6px; }
+  .zoom span { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tab icon: tomato, shadcn style</h1>
+  <div class="sub">Muted palette, flat shapes, lucide-style strokes — no pixel art, no gradients, no shine. Each shown in a fake tab at <strong>real 16 px</strong> and zoomed to 72 px.</div>
+  <div id="options"></div>
+</div>
+
+<script>
+// shadcn/zinc palette
+const FG = "#fafafa", MUTED = "#a1a1aa", ZINC7 = "#3f3f46", ZINC8 = "#27272a", ZINC9 = "#18181b";
+const RED = "#ef4444", RED6 = "#dc2626", GREEN = "#84cc16", GREEN_MUTED = "#65a30d";
+
+function svg(inner) {
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${inner}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(s)}`;
+}
+
+// Lucide-style stroked tomato: round body + simple two-leaf calyx + stem
+function outlineTomato(stroke, sw) {
+  return `
+    <g fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="14.5" r="7.5"/>
+      <path d="M12 7 v-3"/>
+      <path d="M12 7 c -1.5 -2.5 -4.5 -2.5 -6 -1.5 c 2 .5 3.5 1.5 6 1.5 c 2.5 0 4 -1 6 -1.5 c -1.5 -1 -4.5 -1 -6 1.5 z"/>
+    </g>`;
+}
+
+// Flat solid tomato: filled body + flat leaf pair
+function solidTomato(body, leaf) {
+  return `
+    <circle cx="12" cy="14.5" r="8" fill="${body}"/>
+    <path d="M12 8.5 c -1 -2 -3 -3.5 -5.5 -3 c 1.5 1.8 3.2 2.8 5.5 3 z" fill="${leaf}"/>
+    <path d="M12 8.5 c 1 -2 3 -3.5 5.5 -3 c -1.5 1.8 -3.2 2.8 -5.5 3 z" fill="${leaf}"/>
+    <rect x="11.3" y="4" width="1.4" height="4" rx="0.7" fill="${leaf}"/>`;
+}
+
+const OPTIONS = [
+  { name: "A — Lucide outline, white",
+    desc: "Stroked tomato in the foreground color, transparent background. Matches the lucide icons already used in the app UI.",
+    uri: svg(outlineTomato(FG, 2)) },
+
+  { name: "B — Lucide outline, red",
+    desc: "Same stroke, but in shadcn's red-500. Still an outline, just carries the tomato color.",
+    uri: svg(outlineTomato(RED, 2)) },
+
+  { name: "C — Flat solid red",
+    desc: "Filled muted-red body with a flat green calyx. No shading, no highlight — one shape, one accent.",
+    uri: svg(solidTomato(RED, GREEN_MUTED)) },
+
+  { name: "D — Flat solid, monochrome",
+    desc: "Fully monochrome: zinc body, brighter leaf. The most restrained option — reads as a neutral app glyph.",
+    uri: svg(solidTomato("#71717a", FG)) },
+
+  { name: "E — Tile with outline tomato",
+    desc: "shadcn card as an icon: zinc-900 rounded square, subtle border, white outline tomato inside. App-icon feel.",
+    uri: svg(`
+      <rect x="0.5" y="0.5" width="23" height="23" rx="5.5" fill="${ZINC9}" stroke="${ZINC7}" stroke-width="1"/>
+      <g transform="translate(12 12) scale(0.72) translate(-12 -12)">${outlineTomato(FG, 2.4)}</g>`) },
+
+  { name: "F — Tile with solid red tomato",
+    desc: "Same tile, small solid red tomato inside. Dark chrome around a single color accent.",
+    uri: svg(`
+      <rect x="0.5" y="0.5" width="23" height="23" rx="5.5" fill="${ZINC9}" stroke="${ZINC7}" stroke-width="1"/>
+      <g transform="translate(12 12) scale(0.72) translate(-12 -12)">${solidTomato(RED, GREEN_MUTED)}</g>`) },
+];
+
+const root = document.getElementById("options");
+for (const opt of OPTIONS) {
+  root.insertAdjacentHTML("beforeend", `
+    <div class="option">
+      <h2>${opt.name}</h2>
+      <p class="desc">${opt.desc}</p>
+      <div class="row">
+        <div class="tabstrip">
+          <div class="tab"><img src="${opt.uri}"><span>25:00 · Pomodoro</span></div>
+          <div class="tab"><img src="${opt.uri}"><span>Pomodoro</span></div>
+        </div>
+        <div class="zoom"><img src="${opt.uri}"><span>zoomed 72 px</span></div>
+      </div>
+    </div>`);
+}
+</script>
+</body>
+</html>

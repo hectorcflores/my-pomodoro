@@ -788,57 +788,31 @@
       return state.activeSession.pausedRemainingSeconds !== null ? "Resume" : "Pause";
     }
 
-    // Tab tomato: ripens from the bottom up in 6 states while a session runs.
-    const faviconRects = [
-      { x: 18, y: 6, w: 8, h: 8, color: "#4f7f24", band: 5 },
-      { x: 26, y: 6, w: 8, h: 8, color: "#2f6f25", band: 5 },
-      { x: 34, y: 6, w: 8, h: 8, color: "#4f7f24", band: 5 },
-      { x: 14, y: 14, w: 12, h: 8, color: "#3f8f2b", band: 4 },
-      { x: 26, y: 14, w: 8, h: 8, color: "#6aa42d", band: 4 },
-      { x: 34, y: 14, w: 16, h: 8, color: "#2f6f25", band: 4 },
-      { x: 10, y: 22, w: 8, h: 8, color: "#8f2027", band: 3 },
-      { x: 18, y: 22, w: 36, h: 8, color: "#e5482f", band: 3 },
-      { x: 54, y: 22, w: 4, h: 8, color: "#8f2027", band: 3 },
-      { x: 6, y: 30, w: 8, h: 16, color: "#8f2027", band: 2 },
-      { x: 14, y: 30, w: 8, h: 16, color: "#f05a32", band: 2 },
-      { x: 22, y: 30, w: 30, h: 16, color: "#ff6b35", band: 2 },
-      { x: 52, y: 30, w: 8, h: 16, color: "#c92d2f", band: 2 },
-      { x: 10, y: 46, w: 8, h: 8, color: "#9f1928", band: 1 },
-      { x: 18, y: 46, w: 36, h: 8, color: "#d72f35", band: 1 },
-      { x: 22, y: 54, w: 28, h: 4, color: "#8f2027", band: 0 },
-      { x: 25, y: 34, w: 4, h: 4, color: "#ffd6a6", band: 2 },
-      { x: 36, y: 38, w: 4, h: 4, color: "#ffd6a6", band: 2 },
-      { x: 44, y: 32, w: 4, h: 4, color: "#ffd6a6", band: 2 }
-    ];
-    const faviconDarkShades = new Set(["#8f2027", "#2f6f25", "#9f1928", "#c92d2f", "#d72f35"]);
+    // Tab tomato: shadcn-style tile whose border traces red clockwise as the session progresses.
     const faviconLink = document.getElementById("favicon");
-    let faviconState = null;
+    let faviconProgress = null;
 
-    function faviconGray(color) {
-      if (color === "#ffd6a6") return "#e9e9e9";
-      return faviconDarkShades.has(color) ? "#bdbdbd" : "#d5d5d5";
-    }
+    const faviconTomato = `<g transform="translate(12 12) scale(0.72) translate(-12 -12)" fill="none" stroke="#fafafa" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14.5" r="7.5"/><path d="M12 7 v-3"/><path d="M12 7 c -1.5 -2.5 -4.5 -2.5 -6 -1.5 c 2 .5 3.5 1.5 6 1.5 c 2.5 0 4 -1 6 -1.5 c -1.5 -1 -4.5 -1 -6 1.5 z"/></g>`;
 
-    function tomatoSvg(state) {
-      const body = faviconRects.map((r) => {
-        const fill = r.band < state ? r.color : faviconGray(r.color);
-        return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}"/>`;
-      }).join("");
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">${body}</svg>`;
+    function tomatoTileSvg(progress) {
+      const border = progress === null
+        ? ""
+        : `<rect x="1" y="1" width="22" height="22" rx="5.5" fill="none" stroke="#ef4444" stroke-width="2" pathLength="100" stroke-dasharray="${progress} 100" stroke-linecap="round"/>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="0.5" y="0.5" width="23" height="23" rx="5.5" fill="#18181b" stroke="#3f3f46" stroke-width="1"/>${border}${faviconTomato}</svg>`;
     }
 
     function updateFavicon(remaining) {
       let next = null;
       if (state.activeSession) {
         const progress = 1 - remaining / state.activeSession.durationSeconds;
-        next = Math.min(6, 1 + Math.floor(progress * 6));
+        next = Math.min(100, Math.max(1, Math.round(progress * 100)));
       }
 
-      if (next === faviconState) return;
-      faviconState = next;
+      if (next === faviconProgress) return;
+      faviconProgress = next;
       faviconLink.href = next === null
         ? "./favicon.svg"
-        : `data:image/svg+xml,${encodeURIComponent(tomatoSvg(next))}`;
+        : `data:image/svg+xml,${encodeURIComponent(tomatoTileSvg(next))}`;
     }
 
     function updateTabTitle(remaining) {
