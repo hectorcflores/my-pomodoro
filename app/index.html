@@ -369,7 +369,7 @@
         <div class="pace-count" id="todayCount">0</div>
       </div>
       <div class="pace-row pace-group-end">
-        <div class="pace-label" title="Yesterday, by this time of day">Yesterday</div>
+        <div class="pace-label" title="The most recent weekday (Mon-Fri), full day">Last weekday</div>
         <div class="pace-bar"><div class="pace-fill past" id="yesterdayFill"></div></div>
         <div class="pace-count past" id="yesterdayCount">0</div>
       </div>
@@ -966,7 +966,7 @@
     function renderWeekPace() {
       // Weeks run Saturday 00:00 -> Friday 24:00, local time (same as the weekly email).
       // "This week" and "Today" are in-progress periods; "Last week", "Last 4 weeks",
-      // and "Yesterday" are always full, completed periods.
+      // and "Last weekday" (most recent Mon-Fri) are always full, completed periods.
       const now = new Date();
       const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 1) % 7));
@@ -995,9 +995,11 @@
       els.last4WeeksFill.style.width = `${(last4Avg / paceMax) * 100}%`;
 
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const yesterdayStart = todayStart - 86400 * 1000;
+      const lastWeekday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      do { lastWeekday.setDate(lastWeekday.getDate() - 1); } while (lastWeekday.getDay() === 0 || lastWeekday.getDay() === 6);
+      const lastWeekdayEnd = new Date(lastWeekday.getFullYear(), lastWeekday.getMonth(), lastWeekday.getDate() + 1);
       const today = countBetween(todayStart, now.getTime());
-      const yesterday = countBetween(yesterdayStart, todayStart);
+      const yesterday = countBetween(lastWeekday.getTime(), lastWeekdayEnd.getTime());
       const dayMax = Math.max(today, yesterday, 1);
 
       els.todayCount.textContent = sessionsLabel(today);
