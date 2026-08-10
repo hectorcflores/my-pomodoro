@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#09090b">
   <title>&#8203;</title>
-  <link rel="icon" id="favicon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="icon" id="favicon" href="./favicon.svg?v=2" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -811,7 +811,7 @@
       if (next === faviconProgress) return;
       faviconProgress = next;
       faviconLink.href = next === null
-        ? "./favicon.svg"
+        ? "./favicon.svg?v=2"
         : `data:image/svg+xml,${encodeURIComponent(tomatoTileSvg(next))}`;
     }
 
@@ -904,7 +904,7 @@
     function showNotification(title, body) {
       if (!("Notification" in window) || Notification.permission !== "granted") return null;
 
-      const notification = new Notification(title, { body, icon: "./favicon.svg" });
+      const notification = new Notification(title, { body, icon: "./favicon.svg?v=2" });
       notification.onclick = () => {
         window.focus();
         notification.close();
@@ -1162,7 +1162,7 @@
           }
           new Notification("Test", {
             body: "If you can read this, banners work.",
-            icon: "./favicon.svg"
+            icon: "./favicon.svg?v=2"
           });
         }, 3000);
       }
