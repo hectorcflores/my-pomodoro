@@ -208,7 +208,7 @@
 
     .pace-row {
       display: grid;
-      grid-template-columns: 88px 1fr 86px;
+      grid-template-columns: 100px 1fr 86px;
       gap: 12px;
       align-items: center;
     }
@@ -368,10 +368,15 @@
         <div class="pace-bar"><div class="pace-fill" id="todayFill"></div></div>
         <div class="pace-count" id="todayCount">0</div>
       </div>
-      <div class="pace-row pace-group-end">
-        <div class="pace-label" title="The most recent weekday (Mon-Fri), full day">Last weekday</div>
+      <div class="pace-row">
+        <div class="pace-label" id="compareDayLabel" title="The most recent day of the same kind, full day">Last weekday</div>
         <div class="pace-bar"><div class="pace-fill past" id="yesterdayFill"></div></div>
         <div class="pace-count past" id="yesterdayCount">0</div>
+      </div>
+      <div class="pace-row pace-group-end">
+        <div class="pace-label" id="compareAvgLabel" title="Average per day of the same kind over the last 4 full weeks">Weekday avg</div>
+        <div class="pace-bar"><div class="pace-fill past" id="compareAvgFill"></div></div>
+        <div class="pace-count past" id="compareAvgCount">0</div>
       </div>
       <div class="pace-row">
         <div class="pace-label">Week</div>
@@ -384,7 +389,7 @@
         <div class="pace-count past" id="lastWeekCount">0</div>
       </div>
       <div class="pace-row">
-        <div class="pace-label" title="Average of the last 4 weeks, by this point of the week">Last 4 weeks</div>
+        <div class="pace-label" title="Average sessions per week over the last 4 full weeks">4 weeks avg</div>
         <div class="pace-bar"><div class="pace-fill past" id="last4WeeksFill"></div></div>
         <div class="pace-count past" id="last4WeeksCount">0</div>
       </div>
@@ -435,6 +440,10 @@
       todayCount: document.querySelector("#todayCount"),
       yesterdayFill: document.querySelector("#yesterdayFill"),
       yesterdayCount: document.querySelector("#yesterdayCount"),
+      compareDayLabel: document.querySelector("#compareDayLabel"),
+      compareAvgLabel: document.querySelector("#compareAvgLabel"),
+      compareAvgFill: document.querySelector("#compareAvgFill"),
+      compareAvgCount: document.querySelector("#compareAvgCount"),
       thisWeekFill: document.querySelector("#thisWeekFill"),
       thisWeekCount: document.querySelector("#thisWeekCount"),
       lastWeekFill: document.querySelector("#lastWeekFill"),
@@ -966,7 +975,9 @@
     function renderWeekPace() {
       // Weeks run Saturday 00:00 -> Friday 24:00, local time (same as the weekly email).
       // "This week" and "Today" are in-progress periods; "Last week", "Last 4 weeks",
-      // and "Last weekday" (most recent Mon-Fri) are always full, completed periods.
+      // and the compare-day row are always full, completed periods. The compare day
+      // is the most recent day of the same kind as today: weekdays compare against
+      // the previous Mon-Fri day, weekend days against the previous Sat/Sun.
       const now = new Date();
       const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 1) % 7));
@@ -995,17 +1006,35 @@
       els.last4WeeksFill.style.width = `${(last4Avg / paceMax) * 100}%`;
 
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const lastWeekday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      do { lastWeekday.setDate(lastWeekday.getDate() - 1); } while (lastWeekday.getDay() === 0 || lastWeekday.getDay() === 6);
-      const lastWeekdayEnd = new Date(lastWeekday.getFullYear(), lastWeekday.getMonth(), lastWeekday.getDate() + 1);
+      const isWeekend = (date) => date.getDay() === 0 || date.getDay() === 6;
+      const todayIsWeekend = isWeekend(now);
+      const compareDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      do { compareDay.setDate(compareDay.getDate() - 1); } while (isWeekend(compareDay) !== todayIsWeekend);
+      const compareDayEnd = new Date(compareDay.getFullYear(), compareDay.getMonth(), compareDay.getDate() + 1);
+      els.compareDayLabel.textContent = todayIsWeekend ? "Last weekend" : "Last weekday";
       const today = countBetween(todayStart, now.getTime());
-      const yesterday = countBetween(lastWeekday.getTime(), lastWeekdayEnd.getTime());
-      const dayMax = Math.max(today, yesterday, 1);
+      const yesterday = countBetween(compareDay.getTime(), compareDayEnd.getTime());
+
+      // Average per day of today's kind (weekday or weekend day) over the last 4 full weeks.
+      let compareTypeTotal = 0;
+      let compareTypeDays = 0;
+      for (let daysBack = 1; daysBack <= 28; daysBack += 1) {
+        const dayStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() - daysBack);
+        if (isWeekend(dayStart) !== todayIsWeekend) continue;
+        const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1);
+        compareTypeDays += 1;
+        compareTypeTotal += countBetween(dayStart.getTime(), dayEnd.getTime());
+      }
+      const compareAvg = compareTypeDays ? Math.round((compareTypeTotal / compareTypeDays) * 10) / 10 : 0;
+      els.compareAvgLabel.textContent = todayIsWeekend ? "Weekend avg" : "Weekday avg";
+      const dayMax = Math.max(today, yesterday, compareAvg, 1);
 
       els.todayCount.textContent = sessionsLabel(today);
       els.yesterdayCount.textContent = sessionsLabel(yesterday);
+      els.compareAvgCount.textContent = sessionsLabel(compareAvg);
       els.todayFill.style.width = `${(today / dayMax) * 100}%`;
       els.yesterdayFill.style.width = `${(yesterday / dayMax) * 100}%`;
+      els.compareAvgFill.style.width = `${(compareAvg / dayMax) * 100}%`;
     }
 
     function renderHeatmap() {
