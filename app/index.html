@@ -858,7 +858,7 @@
     }
 
     // Tab tomato: shadcn-style tile whose border traces white clockwise from the top,
-    // advancing a tenth each time 10% of the session completes.
+    // advancing one step for each elapsed minute of the session.
     const faviconLink = document.getElementById("favicon");
     let faviconProgress = null;
 
@@ -874,8 +874,9 @@
     function updateFavicon(remaining) {
       let next = null;
       if (state.activeSession) {
-        const progress = 1 - remaining / state.activeSession.durationSeconds;
-        next = Math.min(10, Math.floor(progress * 10)) * 10;
+        const totalMinutes = Math.max(1, Math.round(state.activeSession.durationSeconds / 60));
+        const elapsedMinutes = Math.min(totalMinutes, Math.max(0, Math.floor((state.activeSession.durationSeconds - remaining) / 60)));
+        next = Math.round((elapsedMinutes / totalMinutes) * 100);
       }
 
       if (next === faviconProgress) return;
