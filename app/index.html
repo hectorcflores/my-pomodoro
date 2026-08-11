@@ -84,6 +84,53 @@
       letter-spacing: -0.02em;
     }
 
+    .last-session {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      margin-top: -2px;
+    }
+
+    .last-session[hidden] {
+      display: none;
+    }
+
+    .tabs {
+      display: flex;
+      justify-content: center;
+    }
+
+    .tabs-list {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--chip);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .tab-trigger {
+      min-height: 32px;
+      padding: 0 22px;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .tab-trigger.active {
+      background: var(--bg);
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+
+    .week-pace[hidden],
+    .heatmap[hidden] {
+      display: none;
+    }
+
     .actions {
       display: grid;
       gap: 10px;
@@ -349,6 +396,7 @@
     <section class="timer">
       <div class="state" id="state">0 sessions today</div>
       <div class="time" id="time">30:00</div>
+      <div class="last-session" id="lastSession" hidden></div>
     </section>
 
     <section class="actions">
@@ -362,7 +410,14 @@
       </div>
     </section>
 
-    <section class="week-pace" aria-label="Today and this week versus the same point before">
+    <div class="tabs">
+      <div class="tabs-list" role="tablist">
+        <button class="tab-trigger active" id="paceTab" type="button" role="tab">Pace</button>
+        <button class="tab-trigger" id="heatmapTab" type="button" role="tab">Heatmap</button>
+      </div>
+    </div>
+
+    <section class="week-pace" id="pacePanel" aria-label="Today and this week versus the same point before">
       <div class="pace-row">
         <div class="pace-label">Today</div>
         <div class="pace-bar"><div class="pace-fill" id="todayFill"></div></div>
@@ -395,7 +450,7 @@
       </div>
     </section>
 
-    <section class="heatmap" aria-label="Focus sessions by hour">
+    <section class="heatmap" id="heatmapPanel" aria-label="Focus sessions by hour" hidden>
       <h2 class="visually-hidden">Global history by weekday and hour</h2>
       <div class="day-grid" id="hourGrid"></div>
       <div class="hour-labels" aria-hidden="true">
@@ -430,6 +485,11 @@
     const els = {
       time: document.querySelector("#time"),
       state: document.querySelector("#state"),
+      lastSession: document.querySelector("#lastSession"),
+      paceTab: document.querySelector("#paceTab"),
+      heatmapTab: document.querySelector("#heatmapTab"),
+      pacePanel: document.querySelector("#pacePanel"),
+      heatmapPanel: document.querySelector("#heatmapPanel"),
       mainButton: document.querySelector("#mainButton"),
       undoButton: document.querySelector("#undoButton"),
       breakButtons: Array.from(document.querySelectorAll("[data-break-minutes]")),
@@ -787,6 +847,7 @@
       renderStreak();
       renderWeekPace();
       renderHeatmap();
+      renderLastSession();
       updateTabTitle(remaining);
       updateFavicon(remaining);
     }
@@ -943,6 +1004,19 @@
       state.nudgedSessionId = last.id;
       saveState();
       showNotification("Still working?", "No session running. Start one so it counts.");
+    }
+
+    function renderLastSession() {
+      const latest = state.sessions.reduce((max, session) => {
+        return !max || session.completedAt > max ? session.completedAt : max;
+      }, null);
+      els.lastSession.hidden = !latest;
+      if (!latest) return;
+
+      const minutesAgo = Math.max(0, Math.floor((Date.now() - new Date(latest).getTime()) / 60000));
+      const hours = Math.floor(minutesAgo / 60);
+      const minutes = minutesAgo % 60;
+      els.lastSession.textContent = `Last session: ${hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`}`;
     }
 
     function sessionsLabel(count) {
@@ -1160,6 +1234,16 @@
 
     els.mainButton.addEventListener("click", handleMainAction);
     els.undoButton.addEventListener("click", undoLast);
+    els.paceTab.addEventListener("click", () => selectPanel("pace"));
+    els.heatmapTab.addEventListener("click", () => selectPanel("heatmap"));
+
+    function selectPanel(panel) {
+      const showPace = panel === "pace";
+      els.paceTab.classList.toggle("active", showPace);
+      els.heatmapTab.classList.toggle("active", !showPace);
+      els.pacePanel.hidden = !showPace;
+      els.heatmapPanel.hidden = showPace;
+    }
     els.skipBreakButton.addEventListener("click", skipBreak);
     els.breakButtons.forEach((button) => {
       button.addEventListener("click", () => startBreak(Number(button.dataset.breakMinutes)));

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mock — last session line + Pace/Heatmap tabs</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090b; --ink: #fafafa; --ink-2: #e4e4e7; --muted: #a1a1aa;
+    --line: #27272a; --chip: #27272a; --surface: #09090b;
+    font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); padding: 40px 20px 80px; display: grid; justify-items: center; gap: 28px; }
+  .note { color: var(--muted); font-size: 14px; max-width: 720px; text-align: center; }
+  .app { display: grid; gap: 24px; width: min(720px, calc(100vw - 28px)); padding: 40px 26px 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  .timer { display: grid; gap: 12px; justify-items: center; padding: 10px 0 2px; }
+  .state { min-height: 21px; color: var(--muted); font-size: 14px; font-weight: 500; }
+  .time { font-variant-numeric: tabular-nums; font-size: clamp(70px, 20vw, 96px); font-weight: 500; line-height: 1; letter-spacing: -0.02em; }
+  .last-session { width: 100%; text-align: right; color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; margin-top: -4px; }
+  button { min-height: 44px; border: 0; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .primary { background: var(--ink); color: #18181b; }
+  .secondary { border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  .actions { display: grid; gap: 10px; }
+  .small-actions { display: flex; justify-content: center; gap: 8px; }
+  .small-actions button { min-height: 36px; padding: 0 14px; font-size: 14px; }
+  .break-btn { color: var(--muted); }
+  /* shadcn-style tabs */
+  .tabs { display: flex; justify-content: center; }
+  .tabs-list { display: inline-flex; background: var(--chip); border-radius: 8px; padding: 3px; gap: 2px; }
+  .tab-trigger { min-height: 32px; padding: 0 22px; border-radius: 6px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; }
+  .tab-trigger.active { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  /* pace rows */
+  .week-pace { display: grid; gap: 8px; padding-top: 2px; }
+  .pace-row { display: grid; grid-template-columns: 100px 1fr 86px; gap: 12px; align-items: center; }
+  .pace-label { color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .pace-bar { height: 8px; border-radius: 999px; background: rgba(250,250,250,.12); overflow: hidden; }
+  .pace-fill { height: 100%; border-radius: 999px; background: var(--ink); }
+  .pace-fill.past { background: #52525b; }
+  .pace-count { color: var(--ink-2); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .pace-count.past { color: var(--muted); }
+  .pace-group-end { margin-bottom: 8px; }
+  /* heatmap */
+  .heatmap { display: grid; gap: 3px; }
+  .hm-row { display: grid; grid-template-columns: 48px repeat(24, minmax(0,1fr)); gap: 3px; align-items: center; }
+  .hm-label { color: var(--muted); font-size: 11px; font-weight: 500; }
+  .hm-cell { aspect-ratio: 1; border-radius: 2px; background: var(--chip); }
+  .hm-cell.l1 { background: #3f3f46; } .hm-cell.l2 { background: #71717a; }
+  .hm-cell.l3 { background: #d4d4d8; } .hm-cell.l4 { background: #fafafa; }
+  /* variants strip */
+  .variants { width: min(720px, calc(100vw - 28px)); display: grid; gap: 12px; }
+  .variants h2 { font-size: 14px; margin: 8px 0 0; color: var(--ink); }
+  .variant { border: 1px dashed var(--line); border-radius: 10px; padding: 16px 26px 12px; }
+  .variant .tag { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
+  .vtime { font-variant-numeric: tabular-nums; font-size: 44px; font-weight: 500; line-height: 1; letter-spacing: -0.02em; text-align: center; }
+  .vline { color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <div class="note">Full mock: the "Last session" line sits under the timer, right-aligned (variant A). Tabs under the break pills switch Pace ↔ Heatmap — click them, they work. Placement variants for the line are at the bottom.</div>
+
+  <div class="app">
+    <div class="timer">
+      <div class="state">3 sessions today</div>
+      <div class="time">30:00</div>
+      <div class="last-session">Last session: 2h 14m</div>
+    </div>
+    <div class="actions">
+      <button class="primary">Start</button>
+      <div class="small-actions">
+        <button class="secondary">Undo</button>
+        <button class="secondary break-btn">Break 5m</button>
+        <button class="secondary break-btn">Break 10m</button>
+        <button class="secondary break-btn">Break 20m</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tabs-list">
+        <button class="tab-trigger active" data-tab="pace">Pace</button>
+        <button class="tab-trigger" data-tab="heatmap">Heatmap</button>
+      </div>
+    </div>
+
+    <section id="panel-pace" class="week-pace">
+      <div class="pace-row"><div class="pace-label">Today</div><div class="pace-bar"><div class="pace-fill" style="width:88%"></div></div><div class="pace-count">3 sessions</div></div>
+      <div class="pace-row"><div class="pace-label">Last weekday</div><div class="pace-bar"><div class="pace-fill past" style="width:59%"></div></div><div class="pace-count past">2 sessions</div></div>
+      <div class="pace-row pace-group-end"><div class="pace-label">Weekday avg</div><div class="pace-bar"><div class="pace-fill past" style="width:100%"></div></div><div class="pace-count past">3.4 sessions</div></div>
+      <div class="pace-row"><div class="pace-label">Week</div><div class="pace-bar"><div class="pace-fill" style="width:12%"></div></div><div class="pace-count">3 sessions</div></div>
+      <div class="pace-row"><div class="pace-label">Last week</div><div class="pace-bar"><div class="pace-fill past" style="width:100%"></div></div><div class="pace-count past">26 sessions</div></div>
+      <div class="pace-row"><div class="pace-label">4 weeks avg</div><div class="pace-bar"><div class="pace-fill past" style="width:92%"></div></div><div class="pace-count past">24 sessions</div></div>
+    </section>
+
+    <section id="panel-heatmap" class="heatmap" hidden></section>
+  </div>
+
+  <div class="variants">
+    <h2>Placement variants for the "Last session" line</h2>
+    <div class="variant">
+      <div class="tag">A — right-aligned under the timer (used above)</div>
+      <div class="vtime">30:00</div>
+      <div class="vline" style="text-align:right">Last session: 2h 14m</div>
+    </div>
+    <div class="variant">
+      <div class="tag">B — centered under the timer</div>
+      <div class="vtime">30:00</div>
+      <div class="vline" style="text-align:center">Last session: 2h 14m</div>
+    </div>
+    <div class="variant">
+      <div class="tag">C — merged into the status line above the timer</div>
+      <div class="vline" style="text-align:center; margin:0 0 8px">3 sessions today · last 2h 14m ago</div>
+      <div class="vtime">30:00</div>
+    </div>
+  </div>
+
+<script>
+  // tabs
+  document.querySelectorAll(".tab-trigger").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-trigger").forEach((b) => b.classList.toggle("active", b === btn));
+      document.getElementById("panel-pace").hidden = btn.dataset.tab !== "pace";
+      document.getElementById("panel-heatmap").hidden = btn.dataset.tab !== "heatmap";
+    });
+  });
+  // fake heatmap data
+  const hm = document.getElementById("panel-heatmap");
+  const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const seed = [0,0,0,0,0,1,3,4,2,1,0,0,1,2,3,2,1,1,2,1,0,0,0,0];
+  for (let d = 0; d < 7; d++) {
+    const row = document.createElement("div");
+    row.className = "hm-row";
+    row.innerHTML = `<div class="hm-label">${days[d]}</div>`;
+    for (let h = 0; h < 24; h++) {
+      const level = Math.max(0, Math.min(4, seed[h] - (d % 3)));
+      const cell = document.createElement("div");
+      cell.className = "hm-cell" + (level ? " l" + level : "");
+      row.appendChild(cell);
+    }
+    hm.appendChild(row);
+  }
+</script>
+</body>
+</html>
