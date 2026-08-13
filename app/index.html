@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#09090b">
   <title>&#8203;</title>
-  <link rel="icon" id="favicon" href="./favicon.svg?v=2" type="image/svg+xml">
+  <link rel="icon" id="favicon" href="./favicon.svg?v=3" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -857,33 +857,41 @@
       return state.activeSession.pausedRemainingSeconds !== null ? "Resume" : "Pause";
     }
 
-    // Tab tomato: shadcn-style tile whose border traces white clockwise from the top,
-    // advancing one step for each elapsed minute of the session.
+    // Tab icon: while a session runs, a black tile shows the minutes left, matching
+    // the minutes on the timer. Idle falls back to the tomato tile in favicon.svg.
+    // Digits are Geist Bold outlines (font units, 1000 upem, cap height 710) because a
+    // favicon cannot load a webfont -- drawing them as paths keeps the page's typeface.
     const faviconLink = document.getElementById("favicon");
-    let faviconProgress = null;
+    const faviconDigits = {"0":{"d":"M347 -16Q253 -16 185 29Q117 73 81 156Q44 239 44 354Q44 469 81 552Q118 636 186 681Q253 726 347 726Q440 726 508 681Q575 636 612 552Q649 469 649 354Q649 240 612 157Q576 74 508 29Q440 -16 347 -16ZM347 112Q417 112 455 173Q492 234 492 354Q492 435 476 489Q459 543 427 571Q394 598 347 598Q299 598 267 571Q234 543 217 489Q201 435 201 354Q201 234 238 173Q276 112 347 112Z","a":693},"1":{"d":"M192 0V467H38V578H99Q143 578 171 591Q198 603 210 631Q223 660 223 710H344V0Z","a":449},"2":{"d":"M58 0Q58 91 83 158Q107 225 163 278Q218 331 310 379Q359 404 387 423Q416 443 428 463Q440 483 440 510Q440 536 429 556Q417 575 395 587Q373 598 340 598Q286 598 254 566Q223 535 215 475L59 484Q69 597 142 662Q214 726 338 726Q420 726 477 699Q535 672 566 624Q596 576 596 512Q596 456 578 418Q559 380 518 348Q477 316 410 280Q324 234 283 196Q242 157 239 128H596V0Z","a":653},"3":{"d":"M324 -16Q192 -16 120 44Q49 105 44 208L199 214Q204 161 237 136Q269 112 324 112Q360 112 388 122Q416 133 433 155Q449 177 449 210Q449 261 414 287Q379 312 319 312H256V425H319Q365 425 396 445Q426 464 426 511Q426 551 401 575Q376 598 322 598Q268 598 241 576Q214 554 208 519L55 527Q65 617 135 672Q204 726 322 726Q406 726 464 702Q522 678 552 633Q582 588 582 527Q582 464 541 423Q499 382 421 367V384Q510 371 558 323Q606 275 606 199Q606 132 571 83Q536 35 473 10Q410 -16 324 -16Z","a":650},"4":{"d":"M377 0V135H24V256L348 710H529V263H612V135H529V0ZM185 263H377V523Z","a":656},"5":{"d":"M334 -16Q247 -16 187 10Q127 36 94 84Q61 132 56 196L210 203Q219 157 250 135Q282 112 334 112Q392 112 426 145Q459 178 459 236Q459 274 444 302Q428 330 400 346Q372 362 333 362Q290 362 259 343Q228 324 216 295H64L113 710H566V582H242L216 375L199 390Q216 416 241 434Q267 453 301 463Q335 474 376 474Q450 474 503 443Q557 412 586 358Q615 304 615 236Q615 159 580 102Q545 45 482 15Q419 -16 334 -16Z","a":671},"6":{"d":"M321 -16Q229 -16 168 23Q106 62 75 135Q44 209 44 313Q44 402 62 477Q80 553 117 608Q154 664 210 695Q267 726 344 726Q448 726 508 676Q569 626 589 540L449 530Q437 563 413 582Q390 601 344 601Q274 601 234 540Q194 479 190 352L169 356Q179 385 203 410Q227 435 265 451Q302 466 352 466Q425 466 479 437Q533 408 563 356Q593 304 593 234Q593 154 558 99Q524 43 463 13Q402 -16 321 -16ZM320 105Q374 105 408 139Q441 174 441 232Q441 270 427 298Q412 326 386 342Q359 358 324 358Q287 358 258 342Q229 326 213 298Q197 270 197 232Q197 195 212 166Q227 137 255 121Q283 105 320 105Z","a":627},"7":{"d":"M164 0Q164 110 192 213Q220 316 271 409Q322 502 390 582H20V710H544V591Q470 507 419 419Q369 330 343 228Q318 126 318 0Z","a":544},"8":{"d":"M332 -16Q242 -16 175 8Q108 31 71 78Q34 125 34 193Q34 273 84 324Q134 376 218 390L220 370Q150 383 109 425Q69 467 69 531Q69 589 99 633Q130 677 189 701Q247 726 332 726Q417 726 476 701Q535 677 565 633Q595 589 595 531Q595 467 555 426Q514 384 444 370L446 390Q531 375 580 324Q630 273 630 193Q630 125 593 78Q557 31 490 8Q423 -16 332 -16ZM332 112Q396 112 435 139Q473 167 473 216Q473 265 437 295Q400 324 332 324Q264 324 227 295Q191 265 191 216Q191 167 229 139Q268 112 332 112ZM332 431Q383 431 412 451Q441 472 441 515Q441 553 413 576Q386 599 332 599Q279 599 251 576Q223 553 223 515Q223 472 252 451Q281 431 332 431Z","a":664},"9":{"d":"M293 -16Q194 -16 133 29Q72 75 47 160L192 169Q203 140 228 125Q253 109 293 109Q367 109 403 164Q438 219 439 347L458 338Q432 285 385 258Q338 231 271 231Q200 231 147 261Q94 290 64 344Q34 398 34 469Q34 548 67 606Q100 663 161 695Q221 726 300 726Q397 726 461 686Q524 645 556 568Q587 491 587 380Q587 287 569 214Q552 140 516 89Q480 38 424 11Q369 -16 293 -16ZM304 340Q341 340 369 356Q396 372 411 401Q426 430 426 471Q426 511 412 542Q398 572 371 588Q344 605 306 605Q269 605 242 588Q215 572 201 542Q186 512 186 472Q186 431 201 402Q216 373 242 356Q268 340 304 340Z","a":631}};
+    const faviconCapHeight = 710;
+    let faviconMinutes = null;
 
-    const faviconTomato = `<g transform="translate(12 12) scale(0.72) translate(-12 -12)" fill="none" stroke="#fafafa" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14.5" r="7.5"/><path d="M12 7 v-3"/><path d="M12 7 c -1.5 -2.5 -4.5 -2.5 -6 -1.5 c 2 .5 3.5 1.5 6 1.5 c 2.5 0 4 -1 6 -1.5 c -1.5 -1 -4.5 -1 -6 1.5 z"/></g>`;
+    function minutesTileSvg(minutes) {
+      const chars = String(minutes).split("");
+      let advance = 0;
+      const body = chars.map((char) => {
+        const glyph = faviconDigits[char];
+        const part = `<g transform="translate(${advance} 0)"><path d="${glyph.d}"/></g>`;
+        advance += glyph.a;
+        return part;
+      }).join("");
 
-    function tomatoTileSvg(progress) {
-      const border = !progress
-        ? ""
-        : `<rect x="1" y="1" width="22" height="22" rx="5.5" fill="none" stroke="#fafafa" stroke-width="2" pathLength="100" stroke-dasharray="${progress} 100" stroke-linecap="round"/>`;
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="0.5" y="0.5" width="23" height="23" rx="5.5" fill="#18181b" stroke="#3f3f46" stroke-width="1"/>${border}${faviconTomato}</svg>`;
+      // Fit the digits inside the tile, capped so two digits never touch the edges.
+      const scale = Math.min(15 / faviconCapHeight, 17 / advance);
+      const x = (24 - advance * scale) / 2;
+      const baseline = 12 + (faviconCapHeight * scale) / 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#000000"/><g fill="#fafafa" transform="translate(${x} ${baseline}) scale(${scale} ${-scale})">${body}</g></svg>`;
     }
 
     function updateFavicon(remaining) {
-      let next = null;
-      if (state.activeSession) {
-        const totalMinutes = Math.max(1, Math.round(state.activeSession.durationSeconds / 60));
-        const elapsedMinutes = Math.min(totalMinutes, Math.max(0, Math.floor((state.activeSession.durationSeconds - remaining) / 60)));
-        next = Math.round((elapsedMinutes / totalMinutes) * 100);
-      }
+      // Same number the timer shows in its minutes slot, so both count down together.
+      const next = state.activeSession ? Math.max(0, Math.floor(remaining / 60)) : null;
 
-      if (next === faviconProgress) return;
-      faviconProgress = next;
+      if (next === faviconMinutes) return;
+      faviconMinutes = next;
       faviconLink.href = next === null
-        ? "./favicon.svg?v=2"
-        : `data:image/svg+xml,${encodeURIComponent(tomatoTileSvg(next))}`;
+        ? "./favicon.svg?v=3"
+        : `data:image/svg+xml,${encodeURIComponent(minutesTileSvg(next))}`;
     }
 
     function updateTabTitle(remaining) {
@@ -976,7 +984,7 @@
       if (!("Notification" in window) || Notification.permission !== "granted") return null;
 
       playChime();
-      const notification = new Notification(title, { body, icon: "./favicon.svg?v=2" });
+      const notification = new Notification(title, { body, icon: "./favicon.svg?v=3" });
       notification.onclick = () => {
         window.focus();
         notification.close();

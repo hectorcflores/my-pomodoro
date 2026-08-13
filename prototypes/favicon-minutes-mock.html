@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Favicon — minutes instead of the progress line</title>
+<style>
+  :root { --bg:#09090b; --card:#18181b; --border:#27272a; --text:#fafafa; --muted:#a1a1aa; --tabbar:#202124; --tab:#35363a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,sans-serif; padding:40px 24px 80px; }
+  .wrap { max-width:900px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:32px; line-height:1.5; }
+  .opt { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:20px; }
+  .opt.ref { border-style:dashed; }
+  .opt h2 { font-size:16px; margin:0 0 2px; }
+  .opt .desc { color:var(--muted); font-size:13px; margin:0 0 16px; }
+  .striprow { display:flex; align-items:center; gap:16px; margin-bottom:6px; }
+  .striplabel { width:96px; font-size:11px; color:var(--muted); text-align:right; flex-shrink:0; }
+  .tabstrip { background:var(--tabbar); border-radius:8px; padding:6px 8px; display:flex; gap:2px; align-items:center; }
+  .pinned { background:var(--tab); border-radius:7px; width:32px; height:30px; display:flex; align-items:center; justify-content:center; }
+  .pinned.other { background:transparent; }
+  .pinned img { width:16px; height:16px; display:block; }
+  .zoomrow { display:flex; gap:24px; padding:14px 0 0; }
+  .zoom { text-align:center; }
+  .zoom img { width:64px; height:64px; display:block; margin:0 auto 5px; }
+  .zoom span { font-size:11px; color:var(--muted); }
+  .note { font-size:12px; color:var(--muted); margin-top:12px; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Minutes in the tab icon, six ways</h1>
+  <div class="sub">Each row is your pinned tab at <strong>real 16&nbsp;px</strong>, sitting between other pinned favicons — squint, that's the honest test. Below it, the same icons at 64&nbsp;px. Numbers shown are <strong>minutes left</strong>: 30, 24, 12, 8, 1.</div>
+  <div id="options"></div>
+</div>
+
+<script>
+const FG = "#fafafa", ZINC7 = "#3f3f46", ZINC9 = "#18181b", RED = "#ef4444", GREEN = "#65a30d";
+
+function svg(inner) {
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${inner}</svg>`)}`;
+}
+
+const tile = (fill = ZINC9, stroke = ZINC7) =>
+  `<rect x="0.5" y="0.5" width="23" height="23" rx="5.5" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+
+function tomatoOutline(stroke, sw, scale, cx = 12, cy = 12) {
+  return `<g transform="translate(${cx} ${cy}) scale(${scale}) translate(-12 -12)" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="14.5" r="7.5"/><path d="M12 7 v-3"/>
+    <path d="M12 7 c -1.5 -2.5 -4.5 -2.5 -6 -1.5 c 2 .5 3.5 1.5 6 1.5 c 2.5 0 4 -1 6 -1.5 c -1.5 -1 -4.5 -1 -6 1.5 z"/></g>`;
+}
+
+// Digits sized to fill the available width: 2 digits get squeezed, 1 digit stays wide.
+function digits(n, { size, y, fill = FG, width = null, weight = 800 }) {
+  const t = String(n);
+  const lengthAttr = width ? ` textLength="${width}" lengthAdjust="spacingAndGlyphs"` : "";
+  return `<text x="12" y="${y}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}"${lengthAttr}>${t}</text>`;
+}
+
+// Reference: what's live today — the white border traced clockwise
+function refBorder(n) {
+  const p = Math.round(((30 - n) / 30) * 100);
+  return svg(`${tile()}${p ? `<rect x="1" y="1" width="22" height="22" rx="5.5" fill="none" stroke="${FG}" stroke-width="2" pathLength="100" stroke-dasharray="${p} 100" stroke-linecap="round"/>` : ""}${tomatoOutline(FG, 2.4, 0.72)}`);
+}
+
+const OPTIONS = [
+  { ref: true, name: "Current — white progress line", desc: "What's live today: the tomato with the border tracing clockwise. Here for comparison.",
+    fn: refBorder, note: "No number to read, but the tomato stays recognizable." },
+
+  { name: "A — Bare digits, no tile", desc: "Just white numerals on the tab bar, as large as the space allows. Nothing else competing for pixels.",
+    fn: (n) => svg(digits(n, { size: 23, y: 20, width: String(n).length > 1 ? 23 : 13, weight: 900 })),
+    note: "The most legible option by a wide margin — but the tomato identity is gone entirely." },
+
+  { name: "B — Digits on the zinc tile", desc: "Keeps the shadcn tile you picked; the number replaces the tomato inside it.",
+    fn: (n) => svg(`${tile()}${digits(n, { size: 18, y: 18.5, width: String(n).length > 1 ? 17 : 9.5, weight: 800 })}`),
+    note: "The tile's border and padding eat ~4px, so digits shrink. Two digits get tight." },
+
+  { name: "C — Digits on a red tile", desc: "Tile filled tomato-red, white numerals. Color carries the identity instead of the shape.",
+    fn: (n) => svg(`${tile(RED, "#b91c1c")}${digits(n, { size: 18, y: 18.5, width: String(n).length > 1 ? 17 : 9.5, weight: 800 })}`),
+    note: "Red block is easy to spot in the tab strip; white-on-red keeps contrast strong." },
+
+  { name: "D — Digits on the tomato body", desc: "A solid red tomato with the number written across it, small green leaf on top.",
+    fn: (n) => svg(`<circle cx="12" cy="13.5" r="10.2" fill="${RED}"/><path d="M12 4.5 c -1 -1.6 -2.6 -2.6 -4.4 -2.3 c 1.2 1.4 2.6 2.2 4.4 2.3 z" fill="${GREEN}"/><path d="M12 4.5 c 1 -1.6 2.6 -2.6 4.4 -2.3 c -1.2 1.4 -2.6 2.2 -4.4 2.3 z" fill="${GREEN}"/>${digits(n, { size: 16.5, y: 19, width: String(n).length > 1 ? 16 : 9, weight: 800 })}`),
+    note: "Keeps the tomato, but the round body wastes the corners where digits could live." },
+
+  { name: "E — Tomato above, digits below", desc: "Both at once: small tomato outline on top, minutes underneath.",
+    fn: (n) => svg(`${tomatoOutline(FG, 3, 0.42, 12, 7)}${digits(n, { size: 13, y: 22.5, width: String(n).length > 1 ? 15 : 8, weight: 800 })}`),
+    note: "Honest verdict: at 16 px both halves are too small. Shown so you can rule it out." },
+
+  { name: "F — Digits with a red accent bar", desc: "Big white numerals with a thin red bar underneath as the app's signature.",
+    fn: (n) => svg(`${digits(n, { size: 21, y: 17.5, width: String(n).length > 1 ? 22 : 12, weight: 900 })}<rect x="1.5" y="20.5" width="21" height="3" rx="1.5" fill="${RED}"/>`),
+    note: "Nearly as legible as A, and the red stripe gives it something to be recognized by." },
+];
+
+const mailIcon = svg(`<rect x="2" y="5" width="20" height="14" rx="2" fill="#ea4335"/><path d="M3 6.5 l9 6.5 9-6.5" stroke="#fff" stroke-width="1.8" fill="none"/>`);
+const calIcon = svg(`<rect x="3" y="4" width="18" height="17" rx="2" fill="#4285f4"/><rect x="3" y="4" width="18" height="5" fill="#1a67d2"/><text x="12" y="18" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#fff">31</text>`);
+const ghIcon = svg(`<circle cx="12" cy="12" r="10" fill="#e6edf3"/><circle cx="12" cy="12" r="4.5" fill="#202124"/>`);
+
+const VALUES = [30, 24, 12, 8, 1];
+
+const root = document.getElementById("options");
+for (const opt of OPTIONS) {
+  const strip = VALUES.map((n) => `<div class="pinned"><img src="${opt.fn(n)}"></div>`).join("");
+  const zooms = VALUES.map((n) => `<div class="zoom"><img src="${opt.fn(n)}"><span>${n} min left</span></div>`).join("");
+  root.insertAdjacentHTML("beforeend", `
+    <div class="opt${opt.ref ? " ref" : ""}">
+      <h2>${opt.name}</h2>
+      <p class="desc">${opt.desc}</p>
+      <div class="striprow">
+        <div class="striplabel">pinned tabs →</div>
+        <div class="tabstrip">
+          <div class="pinned other"><img src="${mailIcon}"></div>
+          <div class="pinned other"><img src="${calIcon}"></div>
+          ${strip}
+          <div class="pinned other"><img src="${ghIcon}"></div>
+        </div>
+      </div>
+      <div class="zoomrow"><div class="striplabel"></div>${zooms}</div>
+      <div class="note">${opt.note}</div>
+    </div>`);
+}
+</script>
+</body>
+</html>

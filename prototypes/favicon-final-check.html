@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Favicon — final check</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+ :root{--bg:#09090b;--card:#18181b;--border:#27272a;--text:#fafafa;--muted:#a1a1aa;--tabbar:#202124;--tab:#35363a}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--text);font-family:Geist,-apple-system,sans-serif;padding:40px 24px 70px}
+ .wrap{max-width:880px;margin:0 auto}
+ h1{font-size:21px;margin:0 0 6px}.sub{color:var(--muted);font-size:14px;margin-bottom:28px;line-height:1.5}
+ .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px}
+ .card h2{font-size:15px;margin:0 0 12px}
+ .striprow{display:flex;align-items:center;gap:16px}
+ .striplabel{width:86px;font-size:11px;color:var(--muted);text-align:right;flex-shrink:0}
+ .tabstrip{background:var(--tabbar);border-radius:8px;padding:6px 8px;display:flex;gap:2px;align-items:center}
+ .pinned{background:var(--tab);border-radius:7px;width:32px;height:30px;display:flex;align-items:center;justify-content:center}
+ .pinned.other{background:transparent}.pinned img{width:16px;height:16px;display:block}
+ .zoomrow{display:flex;gap:20px;padding:16px 0 0;flex-wrap:wrap}
+ .zoom{text-align:center}
+ .zoom img{width:60px;height:60px;display:block;margin:0 auto 5px;background:var(--tab);border-radius:10px;padding:6px}
+ .zoom span{font-size:11px;color:var(--muted)}
+ .note{font-size:12px;color:var(--muted);margin-top:12px;font-style:italic}
+</style></head><body><div class="wrap">
+<h1>Final check &mdash; new size, plus the idle icon matched to it</h1>
+<div class="sub">Top row is what ships: minutes counting down like the timer, then the idle tomato using the same tile, dimensions and padding. Below, the previous B4 size for comparison.</div>
+<div id="out"></div></div>
+<script>
+const G = {"0":{"d":"M347 -16Q253 -16 185 29Q117 73 81 156Q44 239 44 354Q44 469 81 552Q118 636 186 681Q253 726 347 726Q440 726 508 681Q575 636 612 552Q649 469 649 354Q649 240 612 157Q576 74 508 29Q440 -16 347 -16ZM347 112Q417 112 455 173Q492 234 492 354Q492 435 476 489Q459 543 427 571Q394 598 347 598Q299 598 267 571Q234 543 217 489Q201 435 201 354Q201 234 238 173Q276 112 347 112Z","a":693},"1":{"d":"M192 0V467H38V578H99Q143 578 171 591Q198 603 210 631Q223 660 223 710H344V0Z","a":449},"2":{"d":"M58 0Q58 91 83 158Q107 225 163 278Q218 331 310 379Q359 404 387 423Q416 443 428 463Q440 483 440 510Q440 536 429 556Q417 575 395 587Q373 598 340 598Q286 598 254 566Q223 535 215 475L59 484Q69 597 142 662Q214 726 338 726Q420 726 477 699Q535 672 566 624Q596 576 596 512Q596 456 578 418Q559 380 518 348Q477 316 410 280Q324 234 283 196Q242 157 239 128H596V0Z","a":653},"3":{"d":"M324 -16Q192 -16 120 44Q49 105 44 208L199 214Q204 161 237 136Q269 112 324 112Q360 112 388 122Q416 133 433 155Q449 177 449 210Q449 261 414 287Q379 312 319 312H256V425H319Q365 425 396 445Q426 464 426 511Q426 551 401 575Q376 598 322 598Q268 598 241 576Q214 554 208 519L55 527Q65 617 135 672Q204 726 322 726Q406 726 464 702Q522 678 552 633Q582 588 582 527Q582 464 541 423Q499 382 421 367V384Q510 371 558 323Q606 275 606 199Q606 132 571 83Q536 35 473 10Q410 -16 324 -16Z","a":650},"4":{"d":"M377 0V135H24V256L348 710H529V263H612V135H529V0ZM185 263H377V523Z","a":656},"5":{"d":"M334 -16Q247 -16 187 10Q127 36 94 84Q61 132 56 196L210 203Q219 157 250 135Q282 112 334 112Q392 112 426 145Q459 178 459 236Q459 274 444 302Q428 330 400 346Q372 362 333 362Q290 362 259 343Q228 324 216 295H64L113 710H566V582H242L216 375L199 390Q216 416 241 434Q267 453 301 463Q335 474 376 474Q450 474 503 443Q557 412 586 358Q615 304 615 236Q615 159 580 102Q545 45 482 15Q419 -16 334 -16Z","a":671},"6":{"d":"M321 -16Q229 -16 168 23Q106 62 75 135Q44 209 44 313Q44 402 62 477Q80 553 117 608Q154 664 210 695Q267 726 344 726Q448 726 508 676Q569 626 589 540L449 530Q437 563 413 582Q390 601 344 601Q274 601 234 540Q194 479 190 352L169 356Q179 385 203 410Q227 435 265 451Q302 466 352 466Q425 466 479 437Q533 408 563 356Q593 304 593 234Q593 154 558 99Q524 43 463 13Q402 -16 321 -16ZM320 105Q374 105 408 139Q441 174 441 232Q441 270 427 298Q412 326 386 342Q359 358 324 358Q287 358 258 342Q229 326 213 298Q197 270 197 232Q197 195 212 166Q227 137 255 121Q283 105 320 105Z","a":627},"7":{"d":"M164 0Q164 110 192 213Q220 316 271 409Q322 502 390 582H20V710H544V591Q470 507 419 419Q369 330 343 228Q318 126 318 0Z","a":544},"8":{"d":"M332 -16Q242 -16 175 8Q108 31 71 78Q34 125 34 193Q34 273 84 324Q134 376 218 390L220 370Q150 383 109 425Q69 467 69 531Q69 589 99 633Q130 677 189 701Q247 726 332 726Q417 726 476 701Q535 677 565 633Q595 589 595 531Q595 467 555 426Q514 384 444 370L446 390Q531 375 580 324Q630 273 630 193Q630 125 593 78Q557 31 490 8Q423 -16 332 -16ZM332 112Q396 112 435 139Q473 167 473 216Q473 265 437 295Q400 324 332 324Q264 324 227 295Q191 265 191 216Q191 167 229 139Q268 112 332 112ZM332 431Q383 431 412 451Q441 472 441 515Q441 553 413 576Q386 599 332 599Q279 599 251 576Q223 553 223 515Q223 472 252 451Q281 431 332 431Z","a":664},"9":{"d":"M293 -16Q194 -16 133 29Q72 75 47 160L192 169Q203 140 228 125Q253 109 293 109Q367 109 403 164Q438 219 439 347L458 338Q432 285 385 258Q338 231 271 231Q200 231 147 261Q94 290 64 344Q34 398 34 469Q34 548 67 606Q100 663 161 695Q221 726 300 726Q397 726 461 686Q524 645 556 568Q587 491 587 380Q587 287 569 214Q552 140 516 89Q480 38 424 11Q369 -16 293 -16ZM304 340Q341 340 369 356Q396 372 411 401Q426 430 426 471Q426 511 412 542Q398 572 371 588Q344 605 306 605Q269 605 242 588Q215 572 201 542Q186 512 186 472Q186 431 201 402Q216 373 242 356Q268 340 304 340Z","a":631}};
+const IDLE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect width="24" height="24" rx="5" fill="#000000"/>
+  <g transform="translate(12 12) scale(0.78) translate(-12 -13)" fill="none" stroke="#fafafa" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="14.5" r="7.5"/>
+    <path d="M12 7 v-3"/>
+    <path d="M12 7 c -1.5 -2.5 -4.5 -2.5 -6 -1.5 c 2 .5 3.5 1.5 6 1.5 c 2.5 0 4 -1 6 -1.5 c -1.5 -1 -4.5 -1 -6 1.5 z"/>
+  </g>
+</svg>`;
+function svgUri(s){return "data:image/svg+xml," + encodeURIComponent(s);}
+function tile(n, capPx, maxW){
+  const chars = String(n).split(""); let adv = 0; let body = "";
+  for (const c of chars){ const g = G[c]; body += `<g transform="translate(${adv} 0)"><path d="${g.d}"/></g>`; adv += g.a; }
+  const scale = Math.min(capPx/710, maxW/adv);
+  const x = (24 - adv*scale)/2, baseline = 12 + (710*scale)/2;
+  return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#000000"/><g fill="#fafafa" transform="translate(${x} ${baseline}) scale(${scale} ${-scale})">${body}</g></svg>`);
+}
+const idleUri = svgUri(IDLE);
+const mail = svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" fill="#ea4335"/><path d="M3 6.5 l9 6.5 9-6.5" stroke="#fff" stroke-width="1.8" fill="none"/></svg>`);
+const gh = svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e6edf3"/><circle cx="12" cy="12" r="4.5" fill="#202124"/></svg>`);
+const VALS=[30,24,12,8,1];
+const ROWS=[
+ {h:"Shipping &mdash; digits at the new, larger size (cap 15) + matching idle tomato", cap:15, maxW:17,
+  note:"The idle tomato now sits on the same black full-bleed tile with the same margins, so pinned it never jumps in size."},
+ {h:"Previous B4 for comparison (cap 12.5)", cap:12.5, maxW:14, note:"What you saw before &mdash; noticeably smaller numerals."}
+];
+const out=document.getElementById("out");
+for(const r of ROWS){
+  const strip = VALS.map(n=>`<div class="pinned"><img src="${tile(n,r.cap,r.maxW)}"></div>`).join("")
+    + `<div class="pinned"><img src="${idleUri}"></div>`;
+  const zooms = VALS.map(n=>`<div class="zoom"><img src="${tile(n,r.cap,r.maxW)}"><span>${n} min</span></div>`).join("")
+    + `<div class="zoom"><img src="${idleUri}"><span>idle</span></div>`;
+  out.insertAdjacentHTML("beforeend",`<div class="card"><h2>${r.h}</h2>
+   <div class="striprow"><div class="striplabel">pinned &rarr;</div><div class="tabstrip">
+     <div class="pinned other"><img src="${mail}"></div>${strip}<div class="pinned other"><img src="${gh}"></div>
+   </div></div><div class="zoomrow">${zooms}</div><div class="note">${r.note}</div></div>`);
+}
+</script></body></html>
