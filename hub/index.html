@@ -302,6 +302,19 @@
       font-size: 13px;
       color: hsl(var(--destructive));
     }
+
+    .alert-success {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid hsl(var(--success) / 0.3);
+      border-radius: calc(var(--radius) - 2px);
+      background: hsl(var(--success) / 0.1);
+      font-size: 13px;
+      font-weight: 500;
+      color: hsl(var(--success));
+    }
   </style>
 </head>
 <body>
@@ -312,6 +325,14 @@
     </div>
 
     <div class="card-content">
+      <div class="alert-success" id="importNotice">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 6 9 17l-5-5"/>
+        </svg>
+        Links saved on this device — you're set up.
+      </div>
+
       <nav id="pills" style="display:grid;gap:8px"></nav>
 
       <hr class="separator">
@@ -341,7 +362,7 @@
   <script>
     const APPS = [
       { id: "pomodoro", name: "Pomodoro", url: "https://hectorcflores.github.io/my-pomodoro/app/index.html" },
-      { id: "reading-list", name: "Reading List", url: "https://hectorcflores.github.io/my-reading-list/" }
+      { id: "reading-list", name: "Reading List", url: "https://hectorcflores.github.io/my-reading-list/app/index.html" }
     ];
     const STORAGE_KEY = "apps-hub.setup-links.v1";
 
@@ -490,8 +511,43 @@
       }));
     }
 
+    // One-click setup: a link like  #import&pomodoro=<url>&reading-list=<url>
+    // saves each app's setup URL and strips the fragment, mirroring how the
+    // apps themselves consume their config fragments (see my-pomodoro
+    // app/index.html configureSyncFromUrl). The fragment never leaves the
+    // browser, so keys stay client-side.
+    function importFromFragment() {
+      const hash = window.location.hash.slice(1);
+      if (!hash.startsWith("import")) return false;
+
+      const params = new URLSearchParams(hash.slice("import".length).replace(/^&/, ""));
+      const next = loadLinks();
+      let imported = 0;
+
+      for (const app of APPS) {
+        const value = params.get(app.id);
+        if (!value) continue;
+        try {
+          new URL(value);
+        } catch (error) {
+          continue;
+        }
+        next[app.id] = value;
+        imported += 1;
+      }
+
+      if (!imported || !saveLinks(next)) return false;
+
+      window.history.replaceState({}, document.title,
+        `${window.location.pathname}${window.location.search}`);
+      return true;
+    }
+
     if (!storageAvailable()) {
       document.querySelector("#storageNotice").style.display = "block";
+    }
+    if (importFromFragment()) {
+      document.querySelector("#importNotice").style.display = "flex";
     }
     renderPills();
     renderSetupRows();
