@@ -1,2 +1,4 @@
 data/
 sync-config.local.json
+__pycache__/
+*.pyc
