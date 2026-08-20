@@ -469,6 +469,7 @@
     const storageKey = "focus-sessions.v1";
     const legacyConfigStorageKey = "focus-sessions.sync-config.v1";
     const authMigratedStorageKey = "focus-sessions.auth-migrated.v1";
+    const lastUidStorageKey = "focus-sessions.last-uid.v1";
     const clientIdStorageKey = "focus-sessions.client-id.v1";
     // Firebase web config is public by design; identity and access control
     // come from Google sign-in + Firestore rules, not these values.
@@ -1320,8 +1321,35 @@
 
       try {
         setSyncStatus("Syncing", "syncing");
-        const sessions = await fsListSessions();
-        state.sessions = sessions.map(normalizeRemoteSession);
+        let sessions = await fsListSessions();
+        // Reconcile before the wholesale replace: a session completed while
+        // this device was signed out exists only locally, and adopting the
+        // server list would silently drop it. Push any such rows create-only
+        // first — a 409 means the server already has that id (including the
+        // soft-deleted case, which must NOT be resurrected by re-creating).
+        // Malformed rows are excluded (never poison the server); rows whose
+        // push fails are kept locally so the next sync retries instead of
+        // dropping them, and one bad row can never wedge the whole sync.
+        const remoteIds = new Set(sessions.map((row) => row.id));
+        const localOnly = state.sessions.filter((row) =>
+          row.id && !remoteIds.has(row.id)
+          && Number.isFinite(new Date(row.completedAt).getTime())
+          && Number.isFinite(new Date(row.startedAt).getTime())
+          && Number.isFinite(row.durationSeconds) && row.durationSeconds > 0);
+        const unpushed = [];
+        let pushedAny = false;
+        for (const row of localOnly) {
+          try {
+            await fsCreateSession(row);
+            pushedAny = true;
+          } catch (error) {
+            console.warn("Keeping local session for retry:", row.id, error);
+            unpushed.push(row);
+          }
+        }
+        if (pushedAny) sessions = await fsListSessions();
+        state.sessions = sessions.map(normalizeRemoteSession).concat(unpushed)
+          .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt));
         saveState();
         render();
         setSyncStatus("Synced", "synced");
@@ -1415,6 +1443,16 @@
           }
           try {
             setSyncStatus("Syncing", "syncing");
+            // The local cache belongs to whichever account last synced on
+            // this device. If a DIFFERENT account signs in, that cache must
+            // not be pushed into the new account's data — drop it and adopt
+            // the new account's server list instead.
+            const lastUid = localStorage.getItem(lastUidStorageKey);
+            if (lastUid && lastUid !== user.uid) {
+              state.sessions = [];
+              saveState();
+            }
+            localStorage.setItem(lastUidStorageKey, user.uid);
             await importLegacyIfNeeded();
             await loadRemoteSessions();
           } catch (error) {
