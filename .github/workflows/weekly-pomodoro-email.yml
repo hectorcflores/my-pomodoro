@@ -25,7 +25,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install google-auth
+        run: pip install google-auth requests
 
       - name: Send weekly pomodoro report
         env:
