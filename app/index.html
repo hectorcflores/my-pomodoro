@@ -1320,7 +1320,20 @@
 
       try {
         setSyncStatus("Syncing", "syncing");
-        const sessions = await fsListSessions();
+        let sessions = await fsListSessions();
+        // Reconcile before the wholesale replace: a session completed while
+        // this device was signed out exists only locally, and adopting the
+        // server list would silently drop it. Push any such rows create-only
+        // first — a 409 means the server already has that id (including the
+        // soft-deleted case, which must NOT be resurrected by re-creating).
+        const remoteIds = new Set(sessions.map((row) => row.id));
+        const localOnly = state.sessions.filter(
+          (row) => row.id && row.completedAt && !remoteIds.has(row.id)
+        );
+        if (localOnly.length) {
+          for (const row of localOnly) await fsCreateSession(row);
+          sessions = await fsListSessions();
+        }
         state.sessions = sessions.map(normalizeRemoteSession);
         saveState();
         render();
