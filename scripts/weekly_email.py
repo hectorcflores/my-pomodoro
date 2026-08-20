@@ -77,47 +77,33 @@ def fetch_sessions(env: dict[str, str]) -> list[dict]:
 
     base = (f"https://firestore.googleapis.com/v1/projects/{info['project_id']}"
             f"/databases/(default)/documents")
+    # No orderBy/filters: a server-side sort on a collection-group query
+    # needs a collection-group index the project doesn't define. runQuery
+    # streams every document in one response, so fetch all and sort here.
+    query = {"from": [{"collectionId": "focus_sessions", "allDescendants": True}]}
+    req = urllib.request.Request(
+        base + ":runQuery",
+        data=json.dumps({"structuredQuery": query}).encode(),
+        headers={
+            "Authorization": f"Bearer {credentials.token}",
+            "Content-Type": "application/json",
+        })
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        docs = [r["document"] for r in json.load(resp) if "document" in r]
+
     rows: list[dict] = []
-    cursor: str | None = None
-    while True:
-        query: dict = {
-            "from": [{"collectionId": "focus_sessions", "allDescendants": True}],
-            "orderBy": [
-                {"field": {"fieldPath": "completedAt"}, "direction": "ASCENDING"},
-                {"field": {"fieldPath": "__name__"}, "direction": "ASCENDING"},
-            ],
-            "limit": 300,
-        }
-        if cursor:
-            query["where"] = {"fieldFilter": {
-                "field": {"fieldPath": "completedAt"},
-                "op": "GREATER_THAN",
-                "value": {"timestampValue": cursor},
-            }}
-        req = urllib.request.Request(
-            base + ":runQuery",
-            data=json.dumps({"structuredQuery": query}).encode(),
-            headers={
-                "Authorization": f"Bearer {credentials.token}",
-                "Content-Type": "application/json",
-            })
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            page = [r["document"] for r in json.load(resp) if "document" in r]
-        for doc in page:
-            fields = doc.get("fields", {})
-            completed_at = fields["completedAt"]["timestampValue"]
-            cursor = completed_at
-            if "timestampValue" in fields.get("deletedAt", {}):
-                continue  # soft-deleted by an undo
-            rows.append({
-                "id": doc["name"].rsplit("/", 1)[-1],
-                "started_at": fields["startedAt"]["timestampValue"],
-                "completed_at": completed_at,
-                "duration_seconds": int(fields["durationSeconds"]["integerValue"]),
-                "client_id": fields.get("clientId", {}).get("stringValue", ""),
-            })
-        if len(page) < 300:
-            break
+    for doc in docs:
+        fields = doc.get("fields", {})
+        if "timestampValue" in fields.get("deletedAt", {}):
+            continue  # soft-deleted by an undo
+        rows.append({
+            "id": doc["name"].rsplit("/", 1)[-1],
+            "started_at": fields["startedAt"]["timestampValue"],
+            "completed_at": fields["completedAt"]["timestampValue"],
+            "duration_seconds": int(fields["durationSeconds"]["integerValue"]),
+            "client_id": fields.get("clientId", {}).get("stringValue", ""),
+        })
+    rows.sort(key=lambda row: row["completed_at"])
     return rows
 
 
