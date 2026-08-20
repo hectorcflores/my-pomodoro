@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090b">
+  <meta name="color-scheme" content="dark">
+  <title>Apps</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* shadcn/ui default dark theme (zinc) */
+    :root {
+      --background: 240 10% 3.9%;
+      --foreground: 0 0% 98%;
+      --card: 240 10% 3.9%;
+      --secondary: 240 3.7% 15.9%;
+      --secondary-foreground: 0 0% 98%;
+      --muted-foreground: 240 5% 64.9%;
+      --border: 240 3.7% 15.9%;
+      --ring: 240 4.9% 83.9%;
+      --radius: 0.5rem;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100svh;
+      margin: 0;
+      padding: 16px;
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      font-family: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .card {
+      width: min(440px, 100%);
+      padding: 24px;
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      background: hsl(var(--card));
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      margin: 0 0 20px;
+      font-size: 14px;
+      color: hsl(var(--muted-foreground));
+    }
+
+    nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .app-button {
+      display: flex;
+      align-items: center;
+      min-height: 56px;
+      padding: 0 16px;
+      border-radius: calc(var(--radius) - 2px);
+      background: hsl(var(--secondary));
+      color: hsl(var(--secondary-foreground));
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 150ms;
+    }
+
+    .app-button:hover {
+      background: hsl(var(--secondary) / 0.8);
+    }
+
+    .app-button:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 3px hsl(var(--ring));
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Apps</h1>
+    <p class="subtitle">Sign in with Google inside any app to sync.</p>
+    <nav>
+      <a class="app-button" href="https://hectorcflores.github.io/my-pomodoro/app/index.html">Pomodoro</a>
+      <a class="app-button" href="https://hectorcflores.github.io/my-reading-list/app/index.html">Reading List</a>
+      <a class="app-button" href="https://hectorcflores.github.io/brain-gym/">Brain Gym</a>
+    </nav>
+  </main>
+</body>
+</html>

@@ -467,8 +467,22 @@
 
   <script>
     const storageKey = "focus-sessions.v1";
-    const syncConfigStorageKey = "focus-sessions.sync-config.v1";
+    const legacyConfigStorageKey = "focus-sessions.sync-config.v1";
+    const authMigratedStorageKey = "focus-sessions.auth-migrated.v1";
     const clientIdStorageKey = "focus-sessions.client-id.v1";
+    // Firebase web config is public by design; identity and access control
+    // come from Google sign-in + Firestore rules, not these values.
+    const FIREBASE = {
+      apiKey: "AIzaSyA5_DhdTdqjCVDeOgklUFcnJ1lwfESiP8Y",
+      authDomain: "my-reading-list-3fa75.firebaseapp.com",
+      projectId: "my-reading-list-3fa75",
+      appId: "1:101190488885:web:f0401ddd67b862f163b27c"
+    };
+    // The old Supabase endpoint, kept only for the one-time import of
+    // bookmark-era history after first sign-in. URL and anon key are public
+    // values; the tenant secret (the sync-key hash) never leaves localStorage.
+    const LEGACY_SUPABASE_URL = "https://nasqsmpwovgpyjepgidi.supabase.co";
+    const LEGACY_SUPABASE_ANON_KEY = "sb_publishable_X9E1yEANHLdWINHEAAVZ6w_lNn_xw2G";
     const defaultSessionSeconds = 30 * 60;
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -516,7 +530,9 @@
 
     let state = loadState();
     let tick = null;
-    let syncConfig = null;
+    let authUser = null;        // { uid, email, getToken() } once signed in
+    let authApi = null;         // { signIn, signOutUser } from the module script
+    let authState = "loading";  // loading | out | in | unavailable
     let audioContext = null;
 
     function todayKey(date = new Date()) {
@@ -570,36 +586,12 @@
       els.syncStatus.dataset.status = status;
     }
 
-    function loadSyncConfig() {
+    function loadLegacyConfig() {
       try {
-        return JSON.parse(localStorage.getItem(syncConfigStorageKey) || "null");
+        return JSON.parse(localStorage.getItem(legacyConfigStorageKey) || "null");
       } catch {
         return null;
       }
-    }
-
-    function saveSyncConfig(config) {
-      localStorage.setItem(syncConfigStorageKey, JSON.stringify(config));
-    }
-
-    async function configureSyncFromUrl() {
-      const supabaseUrl = hashParams.get("sb_url") || params.get("sb_url");
-      const supabaseAnonKey = hashParams.get("sb_key") || params.get("sb_key");
-      const syncKey = hashParams.get("sync_key") || params.get("sync_key");
-
-      if (!supabaseUrl || !supabaseAnonKey || !syncKey) {
-        return loadSyncConfig();
-      }
-
-      const config = {
-        supabaseUrl: supabaseUrl.replace(/\/$/, ""),
-        supabaseAnonKey,
-        syncKeyHash: await sha256(syncKey)
-      };
-
-      saveSyncConfig(config);
-      window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
-      return config;
     }
 
     async function sha256(value) {
@@ -1140,27 +1132,172 @@
     }
 
     function isSyncEnabled() {
-      return Boolean(syncConfig && syncConfig.supabaseUrl && syncConfig.supabaseAnonKey && syncConfig.syncKeyHash);
+      return Boolean(authUser);
     }
 
-    async function supabaseRpc(functionName, body) {
-      if (!isSyncEnabled()) return null;
+    // ---- Firestore REST: minimal typed-value encode/decode (same approach
+    // as brain-gym — the SDK is only loaded for Auth, not for data) ----
+    function fsValue(v) {
+      if (v === null || v === undefined) return { nullValue: null };
+      if (typeof v === "string") return { stringValue: v };
+      if (typeof v === "boolean") return { booleanValue: v };
+      if (v instanceof Date) return { timestampValue: v.toISOString() };
+      if (typeof v === "number") return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+      throw new Error("fsValue: unsupported type " + typeof v);
+    }
 
-      const response = await fetch(`${syncConfig.supabaseUrl}/rest/v1/rpc/${functionName}`, {
+    function fsFields(obj) {
+      const out = {};
+      for (const key of Object.keys(obj)) out[key] = fsValue(obj[key]);
+      return out;
+    }
+
+    function fsDecode(v) {
+      if (!v) return null;
+      if ("stringValue" in v) return v.stringValue;
+      if ("integerValue" in v) return parseInt(v.integerValue, 10);
+      if ("doubleValue" in v) return v.doubleValue;
+      if ("booleanValue" in v) return v.booleanValue;
+      if ("timestampValue" in v) return v.timestampValue;
+      if ("nullValue" in v) return null;
+      return null;
+    }
+
+    function fsDecodeFields(fields) {
+      const out = {};
+      for (const key of Object.keys(fields)) out[key] = fsDecode(fields[key]);
+      return out;
+    }
+
+    function fsBase() {
+      return `https://firestore.googleapis.com/v1/projects/${FIREBASE.projectId}/databases/(default)/documents`;
+    }
+
+    function fsDocName(id) {
+      return `projects/${FIREBASE.projectId}/databases/(default)/documents/users/${authUser.uid}/focus_sessions/${id}`;
+    }
+
+    async function fsAuthHeaders() {
+      return { Authorization: `Bearer ${await authUser.getToken()}` };
+    }
+
+    // Create-only (a retried save of the same id is a clean no-op) with
+    // createdAt set to the server's own time — matching the Firestore rules.
+    async function fsCreateSession(session) {
+      const res = await fetch(`${fsBase()}:commit?key=${encodeURIComponent(FIREBASE.apiKey)}`, {
         method: "POST",
-        headers: {
-          "apikey": syncConfig.supabaseAnonKey,
-          "Authorization": `Bearer ${syncConfig.supabaseAnonKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
+        headers: { "Content-Type": "application/json", ...(await fsAuthHeaders()) },
+        body: JSON.stringify({
+          writes: [{
+            update: {
+              name: fsDocName(session.id),
+              fields: fsFields({
+                startedAt: new Date(session.startedAt),
+                completedAt: new Date(session.completedAt),
+                durationSeconds: session.durationSeconds,
+                clientId: session.clientId || clientId(),
+                deletedAt: null
+              })
+            },
+            updateTransforms: [{ fieldPath: "createdAt", setToServerValue: "REQUEST_TIME" }],
+            currentDocument: { exists: false }
+          }]
+        })
       });
+      if (res.status === 409) return false;
+      if (!res.ok) throw new Error(`fsCreateSession: HTTP ${res.status}`);
+      return true;
+    }
 
-      if (!response.ok) {
-        throw new Error(`${functionName} failed: ${response.status}`);
+    async function fsListSessions() {
+      const parent = `${fsBase()}/users/${authUser.uid}`;
+      const rows = [];
+      let cursorIso = null;
+      for (;;) {
+        const structuredQuery = {
+          from: [{ collectionId: "focus_sessions" }],
+          orderBy: [
+            { field: { fieldPath: "completedAt" }, direction: "ASCENDING" },
+            { field: { fieldPath: "__name__" }, direction: "ASCENDING" }
+          ],
+          limit: 300
+        };
+        if (cursorIso) {
+          structuredQuery.where = {
+            fieldFilter: { field: { fieldPath: "completedAt" }, op: "GREATER_THAN", value: { timestampValue: cursorIso } }
+          };
+        }
+        const res = await fetch(`${parent}:runQuery?key=${encodeURIComponent(FIREBASE.apiKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await fsAuthHeaders()) },
+          body: JSON.stringify({ structuredQuery })
+        });
+        if (!res.ok) throw new Error(`fsListSessions: HTTP ${res.status}`);
+        const page = (await res.json()).filter((row) => row.document);
+        for (const row of page) {
+          const data = fsDecodeFields(row.document.fields || {});
+          cursorIso = data.completedAt;
+          if (!data.deletedAt) rows.push({ id: row.document.name.split("/").pop(), ...data });
+        }
+        if (page.length < 300) break;
+      }
+      return rows;
+    }
+
+    // Soft-delete today's newest session by writing only deletedAt — the
+    // narrow update the Firestore rules allow.
+    async function fsUndoLatest() {
+      const startOfToday = new Date(localStartOfTodayIso()).getTime();
+      const todays = (await fsListSessions())
+        .filter((row) => new Date(row.completedAt).getTime() >= startOfToday);
+      if (!todays.length) return;
+      const latest = todays.reduce((a, b) => (new Date(a.completedAt) > new Date(b.completedAt) ? a : b));
+      const res = await fetch(`${fsBase()}:commit?key=${encodeURIComponent(FIREBASE.apiKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await fsAuthHeaders()) },
+        body: JSON.stringify({
+          writes: [{
+            update: { name: fsDocName(latest.id), fields: fsFields({ deletedAt: new Date() }) },
+            updateMask: { fieldPaths: ["deletedAt"] },
+            currentDocument: { exists: true }
+          }]
+        })
+      });
+      if (!res.ok) throw new Error(`fsUndoLatest: HTTP ${res.status}`);
+    }
+
+    // One-time, per device: everything this device knows locally (on a
+    // synced device that is the full fetched history) plus whatever the old
+    // Supabase tenant still returns, pushed create-only under the account.
+    // Preserved ids make re-runs and device races harmless.
+    async function importLegacyIfNeeded() {
+      if (localStorage.getItem(authMigratedStorageKey) === "done") return;
+
+      const known = state.sessions.filter((session) => session.id && session.completedAt);
+
+      let legacyRows = [];
+      const legacy = loadLegacyConfig();
+      if (legacy && legacy.syncKeyHash) {
+        try {
+          const response = await fetch(`${LEGACY_SUPABASE_URL}/rest/v1/rpc/list_focus_sessions`, {
+            method: "POST",
+            headers: {
+              "apikey": LEGACY_SUPABASE_ANON_KEY,
+              "Authorization": `Bearer ${LEGACY_SUPABASE_ANON_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ p_sync_key_hash: legacy.syncKeyHash })
+          });
+          if (response.ok) legacyRows = (await response.json()).map(normalizeRemoteSession);
+        } catch (error) {
+          console.warn("Legacy Supabase read failed (will retry next sign-in):", error);
+        }
       }
 
-      return response.json();
+      const byId = new Map();
+      for (const row of [...known, ...legacyRows]) byId.set(row.id, row);
+      for (const row of byId.values()) await fsCreateSession(row);
+      localStorage.setItem(authMigratedStorageKey, "done");
     }
 
     function normalizeRemoteSession(session) {
@@ -1177,15 +1314,13 @@
 
     async function loadRemoteSessions() {
       if (!isSyncEnabled()) {
-        setSyncStatus("Local only", "local");
+        setSyncStatus(authState === "unavailable" ? "Offline" : "Sign in to sync", authState === "unavailable" ? "issue" : "local");
         return false;
       }
 
       try {
         setSyncStatus("Syncing", "syncing");
-        const sessions = await supabaseRpc("list_focus_sessions", {
-          p_sync_key_hash: syncConfig.syncKeyHash
-        });
+        const sessions = await fsListSessions();
         state.sessions = sessions.map(normalizeRemoteSession);
         saveState();
         render();
@@ -1200,21 +1335,14 @@
 
     async function createRemoteSession(session) {
       if (!isSyncEnabled()) {
-        setSyncStatus("Local only", "local");
+        setSyncStatus("Sign in to sync", "local");
         return;
       }
 
       try {
         setSyncStatus("Syncing", "syncing");
-        await supabaseRpc("create_focus_session", {
-          p_sync_key_hash: syncConfig.syncKeyHash,
-          p_started_at: session.startedAt,
-          p_completed_at: session.completedAt,
-          p_duration_seconds: session.durationSeconds,
-          p_client_id: session.clientId,
-          // Same session id from any tab -> the server keeps only the first save.
-          p_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session.id) ? session.id : null
-        });
+        // Same session id from any tab -> the server keeps only the first save.
+        await fsCreateSession(session);
         await loadRemoteSessions();
       } catch (error) {
         console.warn(error);
@@ -1224,16 +1352,13 @@
 
     async function undoRemoteSession() {
       if (!isSyncEnabled()) {
-        setSyncStatus("Local only", "local");
+        setSyncStatus("Sign in to sync", "local");
         return;
       }
 
       try {
         setSyncStatus("Syncing", "syncing");
-        await supabaseRpc("undo_latest_focus_session", {
-          p_sync_key_hash: syncConfig.syncKeyHash,
-          p_completed_after: localStartOfTodayIso()
-        });
+        await fsUndoLatest();
         await loadRemoteSessions();
       } catch (error) {
         console.warn(error);
@@ -1242,6 +1367,14 @@
     }
 
     els.mainButton.addEventListener("click", handleMainAction);
+    els.syncStatus.style.cursor = "pointer";
+    els.syncStatus.addEventListener("click", async () => {
+      if (authState === "out") {
+        try { await authApi.signIn(); } catch (error) { console.warn(error); }
+      } else if (authState === "in" && confirm("Sign out of sync on this device?")) {
+        authApi.signOutUser();
+      }
+    });
     els.undoButton.addEventListener("click", undoLast);
     els.paceTab.addEventListener("click", () => selectPanel("pace"));
     els.heatmapTab.addEventListener("click", () => selectPanel("heatmap"));
@@ -1266,9 +1399,39 @@
       if (!document.hidden) loadRemoteSessions();
     });
 
+    // The module script at the bottom builds real Firebase Auth services
+    // and calls start(); tests can pass fakes. The timer works fully signed
+    // out — sessions stay local and follow the account after sign-in.
+    window.PomodoroSync = {
+      firebaseConfig: FIREBASE,
+      start(api) {
+        authApi = api;
+        api.onAuthChange(async (user) => {
+          authUser = user;
+          authState = user ? "in" : "out";
+          if (!user) {
+            setSyncStatus("Sign in to sync", "local");
+            return;
+          }
+          try {
+            setSyncStatus("Syncing", "syncing");
+            await importLegacyIfNeeded();
+            await loadRemoteSessions();
+          } catch (error) {
+            console.warn(error);
+            setSyncStatus("Sync issue", "issue");
+          }
+        });
+      },
+      unavailable(error) {
+        console.warn(error);
+        authState = "unavailable";
+        setSyncStatus("Offline", "issue");
+      }
+    };
+
     async function init() {
-      syncConfig = await configureSyncFromUrl();
-      setSyncStatus(isSyncEnabled() ? "Syncing" : "Local only", isSyncEnabled() ? "syncing" : "local");
+      setSyncStatus("Loading", "local");
 
       if ((state.activeSession && state.activeSession.pausedRemainingSeconds === null) || state.activeBreak) {
         startTick();
@@ -1291,10 +1454,47 @@
         }, 3000);
       }
 
-      await loadRemoteSessions();
     }
 
     init();
+  </script>
+  <script type="module">
+    (async () => {
+      try {
+        const [{ initializeApp }, auth] = await Promise.all([
+          import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"),
+          import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js")
+        ]);
+        const app = initializeApp(window.PomodoroSync.firebaseConfig);
+        const instance = auth.getAuth(app);
+        const provider = new auth.GoogleAuthProvider();
+        auth.getRedirectResult(instance).catch((error) => console.warn(error));
+        window.PomodoroSync.start({
+          onAuthChange(callback) {
+            auth.onAuthStateChanged(instance, (user) => {
+              callback(user ? { uid: user.uid, email: user.email, getToken: () => user.getIdToken() } : null);
+            });
+          },
+          async signIn() {
+            try {
+              await auth.signInWithPopup(instance, provider);
+            } catch (error) {
+              const popupIssues = [
+                "auth/popup-blocked",
+                "auth/popup-closed-by-user",
+                "auth/cancelled-popup-request",
+                "auth/operation-not-supported-in-this-environment"
+              ];
+              if (popupIssues.includes(error.code)) await auth.signInWithRedirect(instance, provider);
+              else throw error;
+            }
+          },
+          signOutUser: () => auth.signOut(instance)
+        });
+      } catch (error) {
+        window.PomodoroSync.unavailable(error);
+      }
+    })();
   </script>
 </body>
 </html>

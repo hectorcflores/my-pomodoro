@@ -6,8 +6,12 @@ Weeks run Saturday 00:00 -> Friday 24:00 in America/Mexico_City, so the
 Saturday-morning send always reports a complete week.
 
 Config via environment (or a local .env, falling back to life-os/.env):
-    SUPABASE_URL, SUPABASE_ANON_KEY, SYNC_KEY_HASH        # data
+    FIREBASE_SERVICE_ACCOUNT                              # data (JSON string)
     GMAIL_ADDRESS, GMAIL_APP_PASSWORD, REPORT_RECIPIENT_EMAIL  # sending
+
+Sessions live in Firestore at users/{uid}/focus_sessions since the apps
+moved to Google sign-in; a collection-group query needs no uid. Requires
+google-auth (pip install google-auth).
 
 Usage:
     python3 scripts/weekly_email.py --dry-run   # print the email, send nothing
@@ -33,7 +37,6 @@ TZ = ZoneInfo("America/Mexico_City")
 ROOT = Path(__file__).resolve().parent.parent
 ENV_PATHS = (
     ROOT / ".env",
-    ROOT / "sync-config.local.json",  # handled separately below
     Path.home() / "Documents/projects/life-os/.env",
 )
 WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
@@ -45,12 +48,6 @@ def load_env() -> dict[str, str]:
     for path in ENV_PATHS:
         if not path.exists():
             continue
-        if path.suffix == ".json":
-            cfg = json.loads(path.read_text(encoding="utf-8"))
-            values.setdefault("SUPABASE_URL", cfg.get("supabaseUrl", ""))
-            values.setdefault("SUPABASE_ANON_KEY", cfg.get("supabaseAnonKey", ""))
-            values.setdefault("SYNC_KEY_HASH", cfg.get("syncKeyHash", ""))
-            continue
         for raw in path.read_text(encoding="utf-8").splitlines():
             line = raw.strip()
             if not line or line.startswith("#") or "=" not in line:
@@ -60,7 +57,7 @@ def load_env() -> dict[str, str]:
     for key in list(values):
         if os.environ.get(key):
             values[key] = os.environ[key]
-    for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SYNC_KEY_HASH",
+    for key in ("FIREBASE_SERVICE_ACCOUNT",
                 "GMAIL_ADDRESS", "GMAIL_APP_PASSWORD", "REPORT_RECIPIENT_EMAIL"):
         if os.environ.get(key):
             values[key] = os.environ[key]
@@ -68,15 +65,60 @@ def load_env() -> dict[str, str]:
 
 
 def fetch_sessions(env: dict[str, str]) -> list[dict]:
-    url = env["SUPABASE_URL"].rstrip("/") + "/rest/v1/rpc/list_focus_sessions"
-    body = json.dumps({"p_sync_key_hash": env["SYNC_KEY_HASH"]}).encode()
-    req = urllib.request.Request(url, data=body, headers={
-        "apikey": env["SUPABASE_ANON_KEY"],
-        "Authorization": f"Bearer {env['SUPABASE_ANON_KEY']}",
-        "Content-Type": "application/json",
-    })
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.load(resp)
+    """All non-deleted focus sessions, shaped like the old RPC rows
+    (completed_at ISO strings), via a Firestore collection-group query."""
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request as AuthRequest
+
+    info = json.loads(env["FIREBASE_SERVICE_ACCOUNT"])
+    credentials = service_account.Credentials.from_service_account_info(
+        info, scopes=["https://www.googleapis.com/auth/datastore"])
+    credentials.refresh(AuthRequest())
+
+    base = (f"https://firestore.googleapis.com/v1/projects/{info['project_id']}"
+            f"/databases/(default)/documents")
+    rows: list[dict] = []
+    cursor: str | None = None
+    while True:
+        query: dict = {
+            "from": [{"collectionId": "focus_sessions", "allDescendants": True}],
+            "orderBy": [
+                {"field": {"fieldPath": "completedAt"}, "direction": "ASCENDING"},
+                {"field": {"fieldPath": "__name__"}, "direction": "ASCENDING"},
+            ],
+            "limit": 300,
+        }
+        if cursor:
+            query["where"] = {"fieldFilter": {
+                "field": {"fieldPath": "completedAt"},
+                "op": "GREATER_THAN",
+                "value": {"timestampValue": cursor},
+            }}
+        req = urllib.request.Request(
+            base + ":runQuery",
+            data=json.dumps({"structuredQuery": query}).encode(),
+            headers={
+                "Authorization": f"Bearer {credentials.token}",
+                "Content-Type": "application/json",
+            })
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            page = [r["document"] for r in json.load(resp) if "document" in r]
+        for doc in page:
+            fields = doc.get("fields", {})
+            completed_at = fields["completedAt"]["timestampValue"]
+            cursor = completed_at
+            if "timestampValue" in fields.get("deletedAt", {}):
+                continue  # soft-deleted by an undo
+            rows.append({
+                "id": doc["name"].rsplit("/", 1)[-1],
+                "started_at": fields["startedAt"]["timestampValue"],
+                "completed_at": completed_at,
+                "duration_seconds": int(fields["durationSeconds"]["integerValue"]),
+                "client_id": fields.get("clientId", {}).get("stringValue", ""),
+            })
+        if len(page) < 300:
+            break
+    return rows
 
 
 def week_start(reference: dt.datetime) -> dt.datetime:

@@ -1,6 +1,6 @@
 # Focus Sessions
 
-A tiny local-first focus timer with optional Supabase sync.
+A tiny local-first focus timer that syncs through Google sign-in.
 
 ## Run Locally
 
@@ -14,24 +14,24 @@ Then open:
 http://localhost:8765
 ```
 
-## Supabase Setup
-
-1. Create a Supabase project.
-2. Open the Supabase SQL editor.
-3. Paste and run `supabase/schema.sql`.
-4. Copy your project URL and anon public key from Supabase project settings.
-
 ## Sync Setup
 
-Open the app once with this URL format:
+Open the app and click the sync pill (top of the page) → **Sign in with
+Google**. That's the whole setup, once per device. Sessions completed while
+signed out stay local and are pushed to the account on the next sign-in.
 
-```text
-https://YOUR_GITHUB_PAGES_URL/#sb_url=YOUR_SUPABASE_URL&sb_key=YOUR_SUPABASE_ANON_KEY&sync_key=YOUR_PRIVATE_SYNC_SECRET
-```
+Data lives in Firestore at `users/{uid}/focus_sessions`, in the same Firebase
+project as my-reading-list and brain-gym; the rules for all three apps are
+maintained together in that project (see this repo's history for the
+bookmark-era Supabase setup this replaced). The first sign-in on a device that
+holds bookmark-era history imports it into the account automatically.
 
-The app stores the Supabase URL, anon key, and a hash of your private sync secret in the browser. After setup, it removes the fragment from the visible URL.
+## Weekly email
 
-Use the same setup URL once on each computer.
+`scripts/weekly_email.py` sends the Saturday report. It reads Firestore with a
+service account (`FIREBASE_SERVICE_ACCOUNT` secret, JSON) via a
+collection-group query, so it needs no uid. Runs from
+`.github/workflows/weekly-pomodoro-email.yml`; requires `google-auth`.
 
 ## GitHub Pages
 
@@ -39,6 +39,9 @@ Publish this repository with GitHub Pages from the root of the `main` branch. Th
 
 ## Notes
 
-- The Supabase anon key is designed to be public in browser apps.
-- The private sync secret is the thing that separates your data from anyone else's.
-- Completed sessions are still cached locally so the app remains usable if sync is temporarily unavailable.
+- The Firebase web config in `app/index.html` is public by design; access
+  control is Google sign-in plus Firestore rules keyed to `request.auth.uid`.
+- Completed sessions are still cached locally so the app remains usable if
+  sync is temporarily unavailable.
+- `supabase/schema.sql` is the retired backend's schema, kept for reference
+  until the Supabase project is deleted.
