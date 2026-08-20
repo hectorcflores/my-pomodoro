@@ -89,7 +89,14 @@ def fetch_sessions(env: dict[str, str]) -> list[dict]:
             "Content-Type": "application/json",
         })
     with urllib.request.urlopen(req, timeout=60) as resp:
-        docs = [r["document"] for r in json.load(resp) if "document" in r]
+        payload = json.load(resp)
+    # Firestore can commit HTTP 200 and then report a failure as a trailing
+    # error element after partial results; silently skipping it would email
+    # confidently wrong, undercounted stats.
+    for element in payload:
+        if "error" in element:
+            raise RuntimeError(f"Firestore query failed mid-stream: {element['error']}")
+    docs = [r["document"] for r in payload if "document" in r]
 
     rows: list[dict] = []
     for doc in docs:
