@@ -14,26 +14,16 @@
       --background: 240 10% 3.9%;
       --foreground: 0 0% 98%;
       --card: 240 10% 3.9%;
-      --card-foreground: 0 0% 98%;
-      --primary: 0 0% 98%;
-      --primary-foreground: 240 5.9% 10%;
       --secondary: 240 3.7% 15.9%;
       --secondary-foreground: 0 0% 98%;
-      --muted: 240 3.7% 15.9%;
       --muted-foreground: 240 5% 64.9%;
-      --accent: 240 3.7% 15.9%;
-      --accent-foreground: 0 0% 98%;
-      --destructive: 0 72% 51%;
       --border: 240 3.7% 15.9%;
-      --input: 240 3.7% 15.9%;
       --ring: 240 4.9% 83.9%;
-      --success: 142 71% 45%;
       --radius: 0.5rem;
     }
 
     * {
       box-sizing: border-box;
-      border-color: hsl(var(--border));
     }
 
     body {
@@ -50,59 +40,46 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Card */
     .card {
       width: min(440px, 100%);
+      padding: 24px;
       border: 1px solid hsl(var(--border));
       border-radius: var(--radius);
       background: hsl(var(--card));
-      color: hsl(var(--card-foreground));
       box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     }
 
-    .card-header {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: 24px 24px 0;
-    }
-
-    .card-title {
-      margin: 0;
+    h1 {
+      margin: 0 0 6px;
       font-size: 16px;
       font-weight: 600;
       line-height: 1;
       letter-spacing: -0.01em;
     }
 
-    .card-description {
-      margin: 0;
+    .subtitle {
+      margin: 0 0 20px;
       font-size: 14px;
       color: hsl(var(--muted-foreground));
     }
 
-    .card-content {
+    nav {
       display: grid;
       gap: 8px;
-      padding: 24px;
     }
 
-    /* Button — secondary variant, used for the app rows */
     .app-button {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      height: 56px;
+      min-height: 56px;
       padding: 0 16px;
-      border: 1px solid transparent;
       border-radius: calc(var(--radius) - 2px);
       background: hsl(var(--secondary));
       color: hsl(var(--secondary-foreground));
+      text-decoration: none;
       font-size: 14px;
       font-weight: 500;
-      text-decoration: none;
-      transition: background-color 150ms, opacity 150ms;
+      transition: background-color 150ms;
     }
 
     .app-button:hover {
@@ -113,445 +90,17 @@
       outline: none;
       box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 3px hsl(var(--ring));
     }
-
-    /* Badge */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 2px 10px;
-      border: 1px solid hsl(var(--border));
-      border-radius: 9999px;
-      background: transparent;
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 16px;
-      color: hsl(var(--muted-foreground));
-      white-space: nowrap;
-    }
-
-    .badge::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 9999px;
-      background: currentColor;
-    }
-
-    .badge[data-configured="true"] {
-      color: hsl(var(--success));
-      border-color: hsl(var(--success) / 0.3);
-      background: hsl(var(--success) / 0.1);
-    }
-
-    /* Separator */
-    .separator {
-      height: 1px;
-      margin: 8px 0;
-      background: hsl(var(--border));
-      border: 0;
-    }
-
-    /* Collapsible */
-    summary {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 0;
-      list-style: none;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      color: hsl(var(--muted-foreground));
-      transition: color 150ms;
-    }
-
-    summary::-webkit-details-marker {
-      display: none;
-    }
-
-    summary:hover {
-      color: hsl(var(--foreground));
-    }
-
-    summary:focus-visible {
-      outline: none;
-      border-radius: calc(var(--radius) - 2px);
-      box-shadow: 0 0 0 2px hsl(var(--ring));
-    }
-
-    .chevron {
-      width: 16px;
-      height: 16px;
-      transition: transform 200ms;
-    }
-
-    details[open] .chevron {
-      transform: rotate(90deg);
-    }
-
-    /* Form field */
-    .field {
-      display: grid;
-      gap: 8px;
-      padding-top: 16px;
-    }
-
-    .label {
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 1;
-    }
-
-    .field-row {
-      display: flex;
-      gap: 8px;
-    }
-
-    /* Input */
-    .input {
-      flex: 1;
-      min-width: 0;
-      height: 36px;
-      padding: 0 12px;
-      border: 1px solid hsl(var(--input));
-      border-radius: calc(var(--radius) - 2px);
-      background: transparent;
-      color: hsl(var(--foreground));
-      font-family: inherit;
-      font-size: 14px;
-      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      transition: box-shadow 150ms;
-    }
-
-    .input::placeholder {
-      color: hsl(var(--muted-foreground));
-    }
-
-    .input:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 1px hsl(var(--ring));
-    }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      height: 36px;
-      padding: 0 12px;
-      border: 1px solid transparent;
-      border-radius: calc(var(--radius) - 2px);
-      font-family: inherit;
-      font-size: 14px;
-      font-weight: 500;
-      white-space: nowrap;
-      cursor: pointer;
-      transition: background-color 150ms, color 150ms;
-    }
-
-    .btn:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 3px hsl(var(--ring));
-    }
-
-    .btn-primary {
-      background: hsl(var(--primary));
-      color: hsl(var(--primary-foreground));
-    }
-
-    .btn-primary:hover {
-      background: hsl(var(--primary) / 0.9);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: hsl(var(--muted-foreground));
-    }
-
-    .btn-ghost:hover {
-      background: hsl(var(--accent));
-      color: hsl(var(--accent-foreground));
-    }
-
-    /* Helper text */
-    .hint {
-      margin: 0;
-      font-size: 12px;
-      color: hsl(var(--muted-foreground));
-      overflow-wrap: anywhere;
-    }
-
-    .hint[data-warn="true"] {
-      color: hsl(var(--destructive));
-    }
-
-    .footnote {
-      margin: 20px 0 0;
-      font-size: 12px;
-      line-height: 1.5;
-      color: hsl(var(--muted-foreground));
-    }
-
-    .alert {
-      display: none;
-      margin-top: 12px;
-      padding: 12px;
-      border: 1px solid hsl(var(--destructive) / 0.5);
-      border-radius: calc(var(--radius) - 2px);
-      font-size: 13px;
-      color: hsl(var(--destructive));
-    }
-
-    .alert-success {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 12px;
-      border: 1px solid hsl(var(--success) / 0.3);
-      border-radius: calc(var(--radius) - 2px);
-      background: hsl(var(--success) / 0.1);
-      font-size: 13px;
-      font-weight: 500;
-      color: hsl(var(--success));
-    }
   </style>
 </head>
 <body>
   <main class="card">
-    <div class="card-header">
-      <h1 class="card-title">Apps</h1>
-      <p class="card-description">Keys remembered on this device.</p>
-    </div>
-
-    <div class="card-content">
-      <div class="alert-success" id="importNotice">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M20 6 9 17l-5-5"/>
-        </svg>
-        Links saved on this device — you're set up.
-      </div>
-
-      <nav id="pills" style="display:grid;gap:8px"></nav>
-
-      <hr class="separator">
-
-      <details>
-        <summary>
-          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m9 18 6-6-6-6"/>
-          </svg>
-          Setup links
-        </summary>
-        <div id="setupRows"></div>
-        <p class="footnote">
-          Paste the full bookmark URL you use today — the long one with the key after
-          <code>#</code>. It is stored only in this browser, so keep the original in a
-          password manager.
-        </p>
-      </details>
-
-      <div class="alert" id="storageNotice">
-        This browser can’t remember setup links, so the buttons open the plain apps.
-      </div>
-    </div>
+    <h1>Apps</h1>
+    <p class="subtitle">Sign in with Google inside any app to sync.</p>
+    <nav>
+      <a class="app-button" href="https://hectorcflores.github.io/my-pomodoro/app/index.html">Pomodoro</a>
+      <a class="app-button" href="https://hectorcflores.github.io/my-reading-list/app/index.html">Reading List</a>
+      <a class="app-button" href="https://hectorcflores.github.io/brain-gym/">Brain Gym</a>
+    </nav>
   </main>
-
-  <script>
-    const APPS = [
-      { id: "pomodoro", name: "Pomodoro", url: "https://hectorcflores.github.io/my-pomodoro/app/index.html" },
-      { id: "reading-list", name: "Reading List", url: "https://hectorcflores.github.io/my-reading-list/app/index.html" },
-      { id: "brain-gym", name: "Brain Gym", url: "https://hectorcflores.github.io/brain-gym/" }
-    ];
-    const STORAGE_KEY = "apps-hub.setup-links.v1";
-
-    function loadLinks() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-      } catch (error) {
-        return {};
-      }
-    }
-
-    function saveLinks(links) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(links));
-        return true;
-      } catch (error) {
-        return false;
-      }
-    }
-
-    function storageAvailable() {
-      try {
-        const probe = "apps-hub.probe";
-        localStorage.setItem(probe, "1");
-        localStorage.removeItem(probe);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    }
-
-    // Never render a stored setup link verbatim — it carries the key.
-    function maskedHint(setupUrl) {
-      try {
-        return new URL(setupUrl).pathname + "#…";
-      } catch (error) {
-        return "saved";
-      }
-    }
-
-    function renderPills() {
-      const links = loadLinks();
-
-      document.querySelector("#pills").replaceChildren(...APPS.map((app) => {
-        const configured = Boolean(links[app.id]);
-        const button = document.createElement("a");
-        button.className = "app-button";
-        button.href = links[app.id] || app.url;
-
-        const name = document.createElement("span");
-        name.textContent = app.name;
-
-        const badge = document.createElement("span");
-        badge.className = "badge";
-        badge.dataset.configured = String(configured);
-        badge.textContent = configured ? "configured" : "no key";
-
-        button.append(name, badge);
-        return button;
-      }));
-    }
-
-    function renderSetupRows() {
-      const links = loadLinks();
-
-      document.querySelector("#setupRows").replaceChildren(...APPS.map((app) => {
-        const field = document.createElement("div");
-        field.className = "field";
-
-        const label = document.createElement("label");
-        label.className = "label";
-        label.textContent = app.name;
-
-        const input = document.createElement("input");
-        input.className = "input";
-        input.type = "password";
-        input.autocomplete = "off";
-        input.placeholder = links[app.id] ? "saved — paste to replace" : "https://…#…";
-
-        const hint = document.createElement("p");
-        hint.className = "hint";
-        if (links[app.id]) hint.textContent = maskedHint(links[app.id]);
-
-        const save = document.createElement("button");
-        save.type = "button";
-        save.className = "btn btn-primary";
-        save.textContent = "Save";
-        save.addEventListener("click", () => {
-          const value = input.value.trim();
-          if (!value) return;
-
-          let parsed;
-          try {
-            parsed = new URL(value);
-          } catch (error) {
-            hint.dataset.warn = "true";
-            hint.textContent = "That doesn’t look like a URL — nothing saved.";
-            return;
-          }
-
-          const next = loadLinks();
-          next[app.id] = value;
-          if (!saveLinks(next)) {
-            hint.dataset.warn = "true";
-            hint.textContent = "Couldn’t save — storage is unavailable in this browser.";
-            return;
-          }
-
-          input.value = "";
-          input.placeholder = "saved — paste to replace";
-          renderPills();
-
-          if (!parsed.hash && !parsed.search) {
-            hint.dataset.warn = "true";
-            hint.textContent = "Saved, but there’s no #… part — is the key missing?";
-          } else if (parsed.origin !== window.location.origin) {
-            hint.dataset.warn = "true";
-            hint.textContent = "Saved, but that URL points at a different site than this hub.";
-          } else {
-            delete hint.dataset.warn;
-            hint.textContent = maskedHint(value);
-          }
-        });
-
-        const clear = document.createElement("button");
-        clear.type = "button";
-        clear.className = "btn btn-ghost";
-        clear.textContent = "Clear";
-        clear.addEventListener("click", () => {
-          const next = loadLinks();
-          delete next[app.id];
-          saveLinks(next);
-          input.value = "";
-          input.placeholder = "https://…#…";
-          delete hint.dataset.warn;
-          hint.textContent = "";
-          renderPills();
-        });
-
-        const row = document.createElement("div");
-        row.className = "field-row";
-        row.append(input, save, clear);
-
-        field.append(label, row, hint);
-        return field;
-      }));
-    }
-
-    // One-click setup: a link like  #import&pomodoro=<url>&reading-list=<url>
-    // saves each app's setup URL and strips the fragment, mirroring how the
-    // apps themselves consume their config fragments (see my-pomodoro
-    // app/index.html configureSyncFromUrl). The fragment never leaves the
-    // browser, so keys stay client-side.
-    function importFromFragment() {
-      const hash = window.location.hash.slice(1);
-      if (!hash.startsWith("import")) return false;
-
-      const params = new URLSearchParams(hash.slice("import".length).replace(/^&/, ""));
-      const next = loadLinks();
-      let imported = 0;
-
-      for (const app of APPS) {
-        const value = params.get(app.id);
-        if (!value) continue;
-        try {
-          new URL(value);
-        } catch (error) {
-          continue;
-        }
-        next[app.id] = value;
-        imported += 1;
-      }
-
-      if (!imported || !saveLinks(next)) return false;
-
-      window.history.replaceState({}, document.title,
-        `${window.location.pathname}${window.location.search}`);
-      return true;
-    }
-
-    if (!storageAvailable()) {
-      document.querySelector("#storageNotice").style.display = "block";
-    }
-    if (importFromFragment()) {
-      document.querySelector("#importNotice").style.display = "flex";
-    }
-    renderPills();
-    renderSetupRows();
-  </script>
 </body>
 </html>
