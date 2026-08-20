@@ -470,6 +470,8 @@
     const legacyConfigStorageKey = "focus-sessions.sync-config.v1";
     const authMigratedStorageKey = "focus-sessions.auth-migrated.v1";
     const lastUidStorageKey = "focus-sessions.last-uid.v1";
+    const pendingStorageKey = "focus-sessions.pending.v1";
+    const syncCursorsStorageKey = "focus-sessions.sync-cursors.v1";
     const clientIdStorageKey = "focus-sessions.client-id.v1";
     // Firebase web config is public by design; identity and access control
     // come from Google sign-in + Firestore rules, not these values.
@@ -752,11 +754,11 @@
       const today = todayKey();
       const index = state.sessions.map((session) => session.date).lastIndexOf(today);
       if (index >= 0) {
-        state.sessions.splice(index, 1);
+        const [removed] = state.sessions.splice(index, 1);
         state.completionPending = false;
         render();
         saveState();
-        undoRemoteSession();
+        undoRemoteSession(removed);
       }
     }
 
@@ -1206,26 +1208,38 @@
         })
       });
       if (res.status === 409) return false;
-      if (!res.ok) throw new Error(`fsCreateSession: HTTP ${res.status}`);
+      if (!res.ok) throw await fsError("fsCreateSession", res);
       return true;
     }
 
-    async function fsListSessions() {
+    async function fsError(where, res) {
+      let detail = "";
+      try { detail = JSON.stringify(await res.json()).slice(0, 300); } catch { /* body unreadable */ }
+      const error = new Error(`${where}: HTTP ${res.status} ${detail}`);
+      error.status = res.status;
+      return error;
+    }
+
+    // One page-walking query over focus_sessions ordered by `field`,
+    // optionally only rows with field > afterIso. Rows keep their doc id and
+    // the raw ordering value so callers can advance cursors — including past
+    // soft-deleted rows, which callers may still need to see.
+    async function fsQuerySessions(field, afterIso) {
       const parent = `${fsBase()}/users/${authUser.uid}`;
       const rows = [];
-      let cursorIso = null;
+      let cursorIso = afterIso || null;
       for (;;) {
         const structuredQuery = {
           from: [{ collectionId: "focus_sessions" }],
           orderBy: [
-            { field: { fieldPath: "completedAt" }, direction: "ASCENDING" },
+            { field: { fieldPath: field }, direction: "ASCENDING" },
             { field: { fieldPath: "__name__" }, direction: "ASCENDING" }
           ],
           limit: 300
         };
         if (cursorIso) {
           structuredQuery.where = {
-            fieldFilter: { field: { fieldPath: "completedAt" }, op: "GREATER_THAN", value: { timestampValue: cursorIso } }
+            fieldFilter: { field: { fieldPath: field }, op: "GREATER_THAN", value: { timestampValue: cursorIso } }
           };
         }
         const res = await fetch(`${parent}:runQuery?key=${encodeURIComponent(FIREBASE.apiKey)}`, {
@@ -1233,38 +1247,93 @@
           headers: { "Content-Type": "application/json", ...(await fsAuthHeaders()) },
           body: JSON.stringify({ structuredQuery })
         });
-        if (!res.ok) throw new Error(`fsListSessions: HTTP ${res.status}`);
+        if (!res.ok) throw await fsError("fsQuerySessions(" + field + ")", res);
         const page = (await res.json()).filter((row) => row.document);
         for (const row of page) {
           const data = fsDecodeFields(row.document.fields || {});
-          cursorIso = data.completedAt;
-          if (!data.deletedAt) rows.push({ id: row.document.name.split("/").pop(), ...data });
+          cursorIso = data[field];
+          rows.push({ id: row.document.name.split("/").pop(), ...data });
         }
         if (page.length < 300) break;
       }
       return rows;
     }
 
-    // Soft-delete today's newest session by writing only deletedAt — the
-    // narrow update the Firestore rules allow.
-    async function fsUndoLatest() {
-      const startOfToday = new Date(localStartOfTodayIso()).getTime();
-      const todays = (await fsListSessions())
-        .filter((row) => new Date(row.completedAt).getTime() >= startOfToday);
-      if (!todays.length) return;
-      const latest = todays.reduce((a, b) => (new Date(a.completedAt) > new Date(b.completedAt) ? a : b));
+    // Soft-delete one session by id — writing only deletedAt, the narrow
+    // update the Firestore rules allow. Costs zero reads.
+    async function fsSoftDelete(sessionId) {
       const res = await fetch(`${fsBase()}:commit?key=${encodeURIComponent(FIREBASE.apiKey)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await fsAuthHeaders()) },
         body: JSON.stringify({
           writes: [{
-            update: { name: fsDocName(latest.id), fields: fsFields({ deletedAt: new Date() }) },
+            update: { name: fsDocName(sessionId), fields: fsFields({ deletedAt: new Date() }) },
             updateMask: { fieldPaths: ["deletedAt"] },
             currentDocument: { exists: true }
           }]
         })
       });
-      if (!res.ok) throw new Error(`fsUndoLatest: HTTP ${res.status}`);
+      if (!res.ok) throw await fsError("fsSoftDelete", res);
+    }
+
+    // ---- Pending outbox: completed sessions queue here until the server
+    // confirms them, so nothing ever depends on being online or signed in
+    // at the moment a pomodoro ends ----
+    function loadPending() {
+      try { return JSON.parse(localStorage.getItem(pendingStorageKey)) || []; } catch { return []; }
+    }
+    function savePending(rows) { localStorage.setItem(pendingStorageKey, JSON.stringify(rows)); }
+
+    function isValidSessionRow(row) {
+      return row && row.id
+        && Number.isFinite(new Date(row.completedAt).getTime())
+        && Number.isFinite(new Date(row.startedAt).getTime())
+        && Number.isFinite(row.durationSeconds) && row.durationSeconds > 0;
+    }
+
+    function addPending(session) {
+      const rows = loadPending();
+      if (!rows.some((row) => row.id === session.id)) rows.push(session);
+      savePending(rows);
+    }
+
+    // Push every queued row create-only (409 = already there, done). Rows
+    // that fail transiently stay queued; malformed rows are dropped so one
+    // bad row can never wedge the queue. Returns the first error seen so the
+    // caller can surface rate limiting.
+    async function flushPending() {
+      let firstError = null;
+      const remaining = [];
+      for (const row of loadPending()) {
+        if (!isValidSessionRow(row)) {
+          console.warn("Dropping malformed pending session:", row);
+          continue;
+        }
+        try {
+          await fsCreateSession(row);
+        } catch (error) {
+          console.warn("Keeping pending session for retry:", row.id, error);
+          firstError = firstError || error;
+          remaining.push(row);
+        }
+      }
+      savePending(remaining);
+      return { remaining: remaining.length, error: firstError };
+    }
+
+    function loadCursors() {
+      try { return JSON.parse(localStorage.getItem(syncCursorsStorageKey)); } catch { return null; }
+    }
+    function saveCursors(cursors) { localStorage.setItem(syncCursorsStorageKey, JSON.stringify(cursors)); }
+
+    function mergeServerRows(newRows, deletedIds) {
+      const byId = new Map(state.sessions.filter(isValidSessionRow).map((row) => [row.id, row]));
+      for (const row of newRows) {
+        if (!row.deletedAt) byId.set(row.id, normalizeRemoteSession(row));
+      }
+      for (const id of deletedIds) byId.delete(id);
+      state.sessions = [...byId.values()]
+        .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt));
     }
 
     // One-time, per device: everything this device knows locally (on a
@@ -1313,72 +1382,114 @@
       };
     }
 
-    async function loadRemoteSessions() {
+    // ---- Sync v2: seed once per device, then tiny cursor deltas ----
+    // The old model refetched the ENTIRE history on every window focus,
+    // which burned through Firestore's free read quota (HTTP 429). Now a
+    // device pays the full read once (seed), and every later sync costs two
+    // ~empty queries: new sessions by server-set createdAt, and undos by
+    // deletedAt (with a 10-minute lookback to absorb device clock skew —
+    // re-applying a deletion is a no-op).
+    const SYNC_MIN_INTERVAL_MS = 60e3;
+    const RATE_LIMIT_BACKOFF_MS = 5 * 60e3;
+    const DELETE_LOOKBACK_MS = 10 * 60e3;
+    let syncInFlight = false;
+    let lastSyncAt = 0;
+    let backoffUntil = 0;
+
+    async function seedSync() {
+      const all = await fsQuerySessions("createdAt", null);
+      const serverIds = new Set(all.map((row) => row.id));
+      // Anything this device knows that the server doesn't becomes pending
+      // (create-only + preserved ids keep re-runs and device races harmless).
+      for (const row of state.sessions) {
+        if (isValidSessionRow(row) && !serverIds.has(row.id)) addPending(row);
+      }
+      mergeServerRows(all, []);
+      saveCursors({
+        created: all.length ? all[all.length - 1].createdAt : null,
+        deleted: new Date().toISOString()
+      });
+    }
+
+    async function deltaSync(cursors) {
+      const created = cursors.created
+        ? await fsQuerySessions("createdAt", cursors.created)
+        : await fsQuerySessions("createdAt", null);
+      const lookback = new Date(new Date(cursors.deleted).getTime() - DELETE_LOOKBACK_MS).toISOString();
+      const deleted = await fsQuerySessions("deletedAt", lookback);
+      mergeServerRows(created, deleted.map((row) => row.id));
+      saveCursors({
+        created: created.length ? created[created.length - 1].createdAt : cursors.created,
+        deleted: deleted.length
+          ? deleted.map((row) => row.deletedAt).sort().pop()
+          : cursors.deleted
+      });
+    }
+
+    async function syncSessions(force = false) {
       if (!isSyncEnabled()) {
         setSyncStatus(authState === "unavailable" ? "Offline" : "Sign in to sync", authState === "unavailable" ? "issue" : "local");
         return false;
       }
+      const now = Date.now();
+      if (syncInFlight) return false;
+      if (!force && (now < backoffUntil || now - lastSyncAt < SYNC_MIN_INTERVAL_MS)) return false;
 
+      syncInFlight = true;
       try {
         setSyncStatus("Syncing", "syncing");
-        let sessions = await fsListSessions();
-        // Reconcile before the wholesale replace: a session completed while
-        // this device was signed out exists only locally, and adopting the
-        // server list would silently drop it. Push any such rows create-only
-        // first — a 409 means the server already has that id (including the
-        // soft-deleted case, which must NOT be resurrected by re-creating).
-        // Malformed rows are excluded (never poison the server); rows whose
-        // push fails are kept locally so the next sync retries instead of
-        // dropping them, and one bad row can never wedge the whole sync.
-        const remoteIds = new Set(sessions.map((row) => row.id));
-        const localOnly = state.sessions.filter((row) =>
-          row.id && !remoteIds.has(row.id)
-          && Number.isFinite(new Date(row.completedAt).getTime())
-          && Number.isFinite(new Date(row.startedAt).getTime())
-          && Number.isFinite(row.durationSeconds) && row.durationSeconds > 0);
-        const unpushed = [];
-        let pushedAny = false;
-        for (const row of localOnly) {
-          try {
-            await fsCreateSession(row);
-            pushedAny = true;
-          } catch (error) {
-            console.warn("Keeping local session for retry:", row.id, error);
-            unpushed.push(row);
-          }
-        }
-        if (pushedAny) sessions = await fsListSessions();
-        state.sessions = sessions.map(normalizeRemoteSession).concat(unpushed)
-          .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt));
+        const cursors = loadCursors();
+        if (cursors) await deltaSync(cursors); else await seedSync();
+        // Flush AFTER the pull: the seed may have just queued rows the
+        // server lacks, and they should reach it in this same pass.
+        const flush = await flushPending();
+        if (flush.error) throw flush.error;
+        lastSyncAt = Date.now();
         saveState();
         render();
         setSyncStatus("Synced", "synced");
         return true;
       } catch (error) {
         console.warn(error);
-        setSyncStatus("Sync issue", "issue");
+        if (error && error.status === 429) {
+          backoffUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+          setSyncStatus("Rate limited", "issue");
+          setTimeout(() => syncSessions(), RATE_LIMIT_BACKOFF_MS + 1000);
+        } else {
+          setSyncStatus("Sync issue", "issue");
+        }
         return false;
+      } finally {
+        syncInFlight = false;
       }
     }
 
     async function createRemoteSession(session) {
+      // Queue first: the session is safe locally whatever the network does.
+      addPending(session);
       if (!isSyncEnabled()) {
         setSyncStatus("Sign in to sync", "local");
         return;
       }
 
-      try {
-        setSyncStatus("Syncing", "syncing");
-        // Same session id from any tab -> the server keeps only the first save.
-        await fsCreateSession(session);
-        await loadRemoteSessions();
-      } catch (error) {
-        console.warn(error);
+      setSyncStatus("Syncing", "syncing");
+      const flush = await flushPending();
+      if (!flush.error) {
+        setSyncStatus("Synced", "synced");
+      } else if (flush.error.status === 429) {
+        backoffUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+        setSyncStatus("Rate limited", "issue");
+      } else {
         setSyncStatus("Sync issue", "issue");
       }
     }
 
-    async function undoRemoteSession() {
+    async function undoRemoteSession(session) {
+      // If it never reached the server it only needs to leave the queue.
+      const pending = loadPending();
+      const wasPending = pending.some((row) => row.id === session.id);
+      if (wasPending) savePending(pending.filter((row) => row.id !== session.id));
+
       if (!isSyncEnabled()) {
         setSyncStatus("Sign in to sync", "local");
         return;
@@ -1386,11 +1497,17 @@
 
       try {
         setSyncStatus("Syncing", "syncing");
-        await fsUndoLatest();
-        await loadRemoteSessions();
+        await fsSoftDelete(session.id);
+        setSyncStatus("Synced", "synced");
       } catch (error) {
-        console.warn(error);
-        setSyncStatus("Sync issue", "issue");
+        // A 404/412 here just means the session was still queued and never
+        // written — removing it from the queue above already undid it.
+        if (wasPending) {
+          setSyncStatus("Synced", "synced");
+        } else {
+          console.warn(error);
+          setSyncStatus("Sync issue", "issue");
+        }
       }
     }
 
@@ -1421,10 +1538,10 @@
 
     window.addEventListener("beforeunload", saveState);
     window.addEventListener("focus", () => {
-      loadRemoteSessions();
+      syncSessions();
     });
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) loadRemoteSessions();
+      if (!document.hidden) syncSessions();
     });
 
     // The module script at the bottom builds real Firebase Auth services
@@ -1451,10 +1568,12 @@
             if (lastUid && lastUid !== user.uid) {
               state.sessions = [];
               saveState();
+              localStorage.removeItem(pendingStorageKey);
+              localStorage.removeItem(syncCursorsStorageKey);
             }
             localStorage.setItem(lastUidStorageKey, user.uid);
             await importLegacyIfNeeded();
-            await loadRemoteSessions();
+            await syncSessions(true);
           } catch (error) {
             console.warn(error);
             setSyncStatus("Sync issue", "issue");
