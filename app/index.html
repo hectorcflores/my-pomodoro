@@ -1291,6 +1291,27 @@
       return rows;
     }
 
+    // Total documents (live + soft-deleted) under this user, in one cheap
+    // aggregation read. The sync self-check compares this against what the
+    // cursors have accounted for.
+    async function fsCountSessions() {
+      const parent = `${fsBase()}/users/${authUser.uid}`;
+      const res = await fetch(`${parent}:runAggregationQuery?key=${encodeURIComponent(FIREBASE.apiKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await fsAuthHeaders()) },
+        body: JSON.stringify({
+          structuredAggregationQuery: {
+            structuredQuery: { from: [{ collectionId: "focus_sessions" }] },
+            aggregations: [{ alias: "n", count: {} }]
+          }
+        })
+      });
+      if (!res.ok) throw await fsError("fsCountSessions", res);
+      const rows = await res.json();
+      const hit = rows.find((row) => row.result);
+      return parseInt(hit.result.aggregateFields.n.integerValue, 10);
+    }
+
     // Soft-delete one session by id — writing only deletedAt, the narrow
     // update the Firestore rules allow. Costs zero reads.
     async function fsSoftDelete(sessionId) {
@@ -1439,7 +1460,8 @@
       mergeServerRows(all, []);
       saveCursors({
         created: all.length ? all[all.length - 1].createdAt : null,
-        deleted: new Date().toISOString()
+        deleted: new Date().toISOString(),
+        docs: all.length
       });
     }
 
@@ -1454,7 +1476,8 @@
         created: created.length ? created[created.length - 1].createdAt : cursors.created,
         deleted: deleted.length
           ? deleted.map((row) => row.deletedAt).sort().pop()
-          : cursors.deleted
+          : cursors.deleted,
+        docs: (Number.isFinite(cursors.docs) ? cursors.docs : 0) + created.length
       });
     }
 
@@ -1471,7 +1494,21 @@
       try {
         setSyncStatus("Syncing", "syncing");
         const cursors = loadCursors();
-        if (cursors) await deltaSync(cursors); else await seedSync();
+        if (cursors) {
+          await deltaSync(cursors);
+          // Self-check: soft deletes mean server documents only ever grow,
+          // so the server's count must equal what the cursors have accounted
+          // for. ANY divergence — whatever caused it — means the incremental
+          // view can't be trusted: rebuild from a full read instead.
+          const counted = await fsCountSessions();
+          const tracked = (loadCursors() || {}).docs;
+          if (!Number.isFinite(tracked) || counted !== tracked) {
+            console.warn(`Sync self-check: server has ${counted} docs, tracked ${tracked} — reseeding`);
+            await seedSync();
+          }
+        } else {
+          await seedSync();
+        }
         // Flush AFTER the pull: the seed may have just queued rows the
         // server lacks, and they should reach it in this same pass.
         const flush = await flushPending();
