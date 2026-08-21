@@ -565,37 +565,30 @@
       try {
         const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
         const sessions = Array.isArray(stored.sessions) ? stored.sessions : [];
-        // "In progress" is a fact about the present, derived from the real
-        // clock — never a durable saved state:
-        // - A paused session does not survive closing or reloading the app;
-        //   pause is for answering the door, not for days.
-        // - A running session whose time fully elapsed while the app was
-        //   away genuinely ran: it completes retroactively and queues to
-        //   sync like any other completed session.
-        // - A running session still inside its window keeps ticking.
+        // "In progress" counts only witnessed time: the countdown advances
+        // while the app can see the clock and holds still while it can't.
+        // Closing the laptop or the tab is an implicit pause — on return the
+        // session resumes exactly where it left off. No phantom completions
+        // for time nobody worked, no stranded countdowns.
         let active = stored.activeSession || null;
-        if (active && active.pausedRemainingSeconds != null) {
+        if (active && !Number.isFinite(new Date(active.startedAt).getTime())) {
           active = null;
+        } else if (active && active.elapsedMs == null) {
+          // Migrate the wall-clock shape once, honoring its own contract.
+          const witnessed = active.pausedRemainingSeconds != null
+            ? (active.durationSeconds - active.pausedRemainingSeconds) * 1000
+            : Math.min(Date.now() - new Date(active.startedAt).getTime(), active.durationSeconds * 1000);
+          active = {
+            id: active.id,
+            startedAt: active.startedAt,
+            durationSeconds: active.durationSeconds,
+            elapsedMs: Math.max(0, witnessed),
+            lastSeenAt: new Date().toISOString(),
+            paused: active.pausedRemainingSeconds != null
+          };
         } else if (active) {
-          const startedMs = new Date(active.startedAt).getTime();
-          if (!Number.isFinite(startedMs)) {
-            active = null;
-          } else if (Date.now() - startedMs >= active.durationSeconds * 1000) {
-            const completedAtMs = startedMs + active.durationSeconds * 1000;
-            const finished = {
-              id: active.id,
-              date: todayKey(new Date(completedAtMs)),
-              startedAt: active.startedAt,
-              completedAt: new Date(completedAtMs).toISOString(),
-              durationSeconds: active.durationSeconds,
-              clientId: clientId()
-            };
-            if (!sessions.some((row) => row.id === finished.id)) {
-              sessions.push(finished);
-              addPending(finished);
-            }
-            active = null;
-          }
+          // The absence between saves was unwitnessed; it does not count.
+          active.lastSeenAt = new Date().toISOString();
         }
         return {
           sessions,
@@ -614,6 +607,52 @@
 
     function saveState() {
       localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    // ---- Witnessed time ----
+    // Each tick credits the session with the time since the last tick. The
+    // credit is capped at Chrome's documented background floor (hidden tabs
+    // get one timer per minute) plus margin: a throttled-but-working tab
+    // loses nothing, while a sleeping laptop credits at most one capped gap
+    // and then holds — the countdown resumes where it left off.
+    const witnessGapCapMs = 90 * 1000;
+
+    function witnessTime() {
+      const active = state.activeSession;
+      if (!active || active.paused) return;
+      const now = Date.now();
+      const last = new Date(active.lastSeenAt).getTime();
+      const gap = Number.isFinite(last) ? now - last : 0;
+      active.elapsedMs += Math.max(0, Math.min(gap, witnessGapCapMs));
+      active.lastSeenAt = new Date(now).toISOString();
+    }
+
+    // Chrome exempts pages holding a Web Lock from intensive background
+    // throttling, so a hidden tab keeps ticking about once a second and the
+    // countdown stays accurate while you work elsewhere. The wanted flag
+    // covers the grant race: a lock released before the browser granted it
+    // must not end up held forever.
+    let tickLockWanted = false;
+    let tickLockRelease = null;
+
+    function holdTickLock() {
+      if (tickLockWanted || !navigator.locks) return;
+      tickLockWanted = true;
+      navigator.locks.request("focus-sessions-ticking", () => new Promise((resolve) => {
+        if (!tickLockWanted) {
+          resolve();
+          return;
+        }
+        tickLockRelease = resolve;
+      })).catch(() => { tickLockRelease = null; });
+    }
+
+    function dropTickLock() {
+      tickLockWanted = false;
+      if (tickLockRelease) {
+        tickLockRelease();
+        tickLockRelease = null;
+      }
     }
 
     function setSyncStatus(label, status = "local") {
@@ -654,7 +693,9 @@
         id: createId(),
         startedAt: new Date().toISOString(),
         durationSeconds: sessionSeconds,
-        pausedRemainingSeconds: null
+        elapsedMs: 0,
+        lastSeenAt: new Date().toISOString(),
+        paused: false
       };
       state.completionPending = false;
       clearBreak();
@@ -729,7 +770,8 @@
 
     function pauseSession() {
       if (!state.activeSession) return;
-      state.activeSession.pausedRemainingSeconds = remainingSeconds();
+      witnessTime();
+      state.activeSession.paused = true;
       stopTick();
       render();
       saveState();
@@ -737,10 +779,8 @@
 
     function resumeSession() {
       if (!state.activeSession) return;
-      const remaining = state.activeSession.pausedRemainingSeconds || sessionSeconds;
-      const elapsedSeconds = state.activeSession.durationSeconds - remaining;
-      state.activeSession.startedAt = new Date(Date.now() - elapsedSeconds * 1000).toISOString();
-      state.activeSession.pausedRemainingSeconds = null;
+      state.activeSession.paused = false;
+      state.activeSession.lastSeenAt = new Date().toISOString();
       startTick();
       render();
       saveState();
@@ -754,7 +794,7 @@
         return;
       }
 
-      if (state.activeSession.pausedRemainingSeconds !== null) {
+      if (state.activeSession.paused) {
         resumeSession();
       } else {
         pauseSession();
@@ -796,17 +836,12 @@
 
     function remainingSeconds() {
       if (!state.activeSession) return sessionSeconds;
-      if (state.activeSession.pausedRemainingSeconds !== null) {
-        return state.activeSession.pausedRemainingSeconds;
-      }
-
-      const startedAt = new Date(state.activeSession.startedAt).getTime();
-      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const elapsed = Math.floor(state.activeSession.elapsedMs / 1000);
       return Math.max(0, state.activeSession.durationSeconds - elapsed);
     }
 
     function settleExpiredSession() {
-      if (!state.activeSession || state.activeSession.pausedRemainingSeconds !== null) return;
+      if (!state.activeSession || state.activeSession.paused) return;
       if (remainingSeconds() === 0) {
         completeSession();
       }
@@ -814,7 +849,9 @@
 
     function startTick() {
       stopTick();
+      holdTickLock();
       tick = setInterval(() => {
+        witnessTime();
         settleExpiredSession();
         settleExpiredBreak();
         render();
@@ -823,6 +860,7 @@
     }
 
     function stopTick() {
+      dropTickLock();
       if (tick) {
         clearInterval(tick);
         tick = null;
@@ -830,7 +868,7 @@
     }
 
     function stopTickIfIdle() {
-      const sessionRunning = state.activeSession && state.activeSession.pausedRemainingSeconds === null;
+      const sessionRunning = state.activeSession && !state.activeSession.paused;
       if (!sessionRunning && !state.activeBreak) stopTick();
     }
 
@@ -881,7 +919,7 @@
 
     function buttonLabel() {
       if (!state.activeSession) return state.completionPending || state.activeBreak ? "Start next" : "Start";
-      return state.activeSession.pausedRemainingSeconds !== null ? "Resume" : "Pause";
+      return state.activeSession.paused ? "Resume" : "Pause";
     }
 
     // Tab icon: while a session runs, a black tile shows the minutes left, matching
@@ -932,7 +970,7 @@
         return;
       }
 
-      document.title = state.activeSession && state.activeSession.pausedRemainingSeconds === null
+      document.title = state.activeSession && !state.activeSession.paused
         ? formatTime(remaining)
         : "\u200B";
     }
@@ -1710,7 +1748,7 @@
     async function init() {
       setSyncStatus("Loading", "local");
 
-      if ((state.activeSession && state.activeSession.pausedRemainingSeconds === null) || state.activeBreak) {
+      if ((state.activeSession && !state.activeSession.paused) || state.activeBreak) {
         startTick();
       }
 
