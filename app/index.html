@@ -565,9 +565,41 @@
       try {
         const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
         const sessions = Array.isArray(stored.sessions) ? stored.sessions : [];
+        // "In progress" is a fact about the present, derived from the real
+        // clock — never a durable saved state:
+        // - A paused session does not survive closing or reloading the app;
+        //   pause is for answering the door, not for days.
+        // - A running session whose time fully elapsed while the app was
+        //   away genuinely ran: it completes retroactively and queues to
+        //   sync like any other completed session.
+        // - A running session still inside its window keeps ticking.
+        let active = stored.activeSession || null;
+        if (active && active.pausedRemainingSeconds != null) {
+          active = null;
+        } else if (active) {
+          const startedMs = new Date(active.startedAt).getTime();
+          if (!Number.isFinite(startedMs)) {
+            active = null;
+          } else if (Date.now() - startedMs >= active.durationSeconds * 1000) {
+            const completedAtMs = startedMs + active.durationSeconds * 1000;
+            const finished = {
+              id: active.id,
+              date: todayKey(new Date(completedAtMs)),
+              startedAt: active.startedAt,
+              completedAt: new Date(completedAtMs).toISOString(),
+              durationSeconds: active.durationSeconds,
+              clientId: clientId()
+            };
+            if (!sessions.some((row) => row.id === finished.id)) {
+              sessions.push(finished);
+              addPending(finished);
+            }
+            active = null;
+          }
+        }
         return {
           sessions,
-          activeSession: stored.activeSession || null,
+          activeSession: active,
           completionPending: Boolean(stored.completionPending)
             && sessions.some((session) => session.date === todayKey()),
           nudgedSessionId: stored.nudgedSessionId || null,
