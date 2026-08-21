@@ -1633,7 +1633,17 @@
     }
 
     // Indirected so tests can observe the decision without navigating.
-    function applyUpdate() {
+    // reload() alone may still be answered from the HTTP cache, which would
+    // silently relaunch the same old code and leave the app believing it is
+    // current — the exact failure this feature exists to prevent. Forcing a
+    // no-cache fetch first refreshes the cached entry, so the reload that
+    // follows is guaranteed to run the new version.
+    async function applyUpdate() {
+      try {
+        await fetch(window.location.pathname, { cache: "reload" });
+      } catch (error) {
+        // Fetch failed: reload anyway, revalidation may still succeed.
+      }
       window.location.reload();
     }
 
