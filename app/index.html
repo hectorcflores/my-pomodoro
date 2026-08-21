@@ -1613,6 +1613,47 @@
       if (!document.hidden) syncSessions();
     });
 
+    // ---- Self-update ----
+    // A tab left open for days keeps running whatever code it loaded then,
+    // however many fixes have shipped since. On every foreground check the
+    // app asks the server whether its own file changed (one conditional
+    // request, answered 304 and free when it hasn't) and reloads when it
+    // has — but only while nothing is running and no work is queued, so an
+    // update can never interrupt a pomodoro or drop an unsynced session.
+    let deployTag = null;
+
+    async function currentDeployTag() {
+      const res = await fetch(window.location.pathname, { method: "HEAD", cache: "no-cache" });
+      if (!res.ok) return null;
+      return res.headers.get("etag") || res.headers.get("last-modified");
+    }
+
+    function safeToReload() {
+      return !state.activeSession && !state.activeBreak && loadPending().length === 0;
+    }
+
+    // Indirected so tests can observe the decision without navigating.
+    function applyUpdate() {
+      window.location.reload();
+    }
+
+    async function checkForUpdate() {
+      try {
+        const tag = await currentDeployTag();
+        if (!tag) return;
+        if (!deployTag) { deployTag = tag; return; }
+        if (tag !== deployTag && safeToReload()) applyUpdate();
+      } catch (error) {
+        // Offline or blocked: nothing to do, try again next time.
+      }
+    }
+
+    checkForUpdate();
+    window.addEventListener("focus", checkForUpdate);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) checkForUpdate();
+    });
+
     // The module script at the bottom builds real Firebase Auth services
     // and calls start(); tests can pass fakes. The timer works fully signed
     // out — sessions stay local and follow the account after sign-in.
