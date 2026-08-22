@@ -21,10 +21,9 @@ Google**. That's the whole setup, once per device. Sessions completed while
 signed out stay local and are pushed to the account on the next sign-in.
 
 Data lives in Firestore at `users/{uid}/focus_sessions`, in the same Firebase
-project as my-reading-list and brain-gym; the rules for all three apps are
-maintained together in that project (see this repo's history for the
-bookmark-era Supabase setup this replaced). The first sign-in on a device that
-holds bookmark-era history imports it into the account automatically.
+project as my-reading-list and brain-gym; `firestore.rules` in this repo is
+the versioned source of that project's ruleset (see this repo's history for
+the bookmark-era Supabase setup this replaced).
 
 ## Weekly email
 
@@ -43,5 +42,3 @@ Publish this repository with GitHub Pages from the root of the `main` branch. Th
   control is Google sign-in plus Firestore rules keyed to `request.auth.uid`.
 - Completed sessions are still cached locally so the app remains usable if
   sync is temporarily unavailable.
-- `supabase/schema.sql` is the retired backend's schema, kept for reference
-  until the Supabase project is deleted.
