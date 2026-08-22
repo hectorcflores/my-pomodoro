@@ -1,0 +1,98 @@
+rules_version = '2';
+
+// ONE ruleset for the whole personal app suite (project my-reading-list-3fa75):
+// Reading List, Brain Gym, and Pomodoro. Publishing this file REPLACES any
+// rules previously published for either app individually.
+//
+// Tenancy: the signed-in Google account. Every live path embeds the uid and
+// every rule checks request.auth.uid against it.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---- Reading List (live) ----
+    match /reading_lists/{uid}/urls/{urlId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidUrlDocument();
+      allow update: if false;   // the description backfiller uses the Admin SDK, which bypasses rules
+      allow delete: if false;
+
+      function isValidUrlDocument() {
+        return request.resource.data.keys().hasOnly(['url', 'description', 'createdAt'])
+          && request.resource.data.url is string
+          && request.resource.data.url.matches('^https?://.+')
+          && (!('description' in request.resource.data)
+              || (request.resource.data.description is string
+                  && request.resource.data.description.size() <= 500))
+          && request.resource.data.createdAt is timestamp;
+      }
+    }
+
+    // ---- Brain Gym (live) ----
+    match /brain_gym/{uid}/reviews/{reviewId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidReview();
+      allow update, delete: if false;
+
+      function isValidReview() {
+        return request.resource.data.keys().hasOnly(['cardId', 'grade', 'reviewedAt', 'clientId', 'createdAt'])
+          && request.resource.data.cardId is string
+          && request.resource.data.cardId.matches('^[a-f0-9]{16}$')
+          && request.resource.data.grade is int
+          && request.resource.data.grade >= 0
+          && request.resource.data.grade <= 3
+          && request.resource.data.reviewedAt is timestamp
+          && request.resource.data.clientId is string
+          && request.resource.data.clientId.size() >= 1
+          && request.resource.data.clientId.size() <= 64
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+
+    match /brain_gym/{uid}/meta/{docId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && docId == 'baseline' && isValidBaseline();
+      allow update, delete: if false;
+
+      function isValidBaseline() {
+        return request.resource.data.keys().hasOnly(['state', 'takenAt', 'createdAt'])
+          && request.resource.data.state is map
+          && request.resource.data.takenAt is timestamp
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+
+    // ---- Pomodoro (live) ----
+    match /users/{uid}/focus_sessions/{sessionId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidSession();
+      // Undo is a soft delete: the one permitted update writes deletedAt and
+      // nothing else.
+      allow update: if isOwner(uid) && isSoftDeleteOnly();
+      allow delete: if false;
+
+      function isValidSession() {
+        return request.resource.data.keys().hasOnly(['startedAt', 'completedAt', 'durationSeconds', 'clientId', 'deletedAt', 'createdAt'])
+          && request.resource.data.startedAt is timestamp
+          && request.resource.data.completedAt is timestamp
+          && request.resource.data.durationSeconds is int
+          && request.resource.data.durationSeconds > 0
+          && request.resource.data.durationSeconds <= 86400
+          && request.resource.data.clientId is string
+          && request.resource.data.clientId.size() >= 1
+          && request.resource.data.clientId.size() <= 64
+          && request.resource.data.deletedAt == null
+          && request.resource.data.createdAt == request.time;
+      }
+
+      function isSoftDeleteOnly() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletedAt'])
+          && request.resource.data.deletedAt is timestamp;
+      }
+    }
+  }
+}
