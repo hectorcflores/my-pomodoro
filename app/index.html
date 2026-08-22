@@ -467,8 +467,6 @@
 
   <script>
     const storageKey = "focus-sessions.v1";
-    const legacyConfigStorageKey = "focus-sessions.sync-config.v1";
-    const authMigratedStorageKey = "focus-sessions.auth-migrated.v1";
     const lastUidStorageKey = "focus-sessions.last-uid.v1";
     const pendingStorageKey = "focus-sessions.pending.v1";
     const syncCursorsStorageKey = "focus-sessions.sync-cursors.v1";
@@ -481,11 +479,6 @@
       projectId: "my-reading-list-3fa75",
       appId: "1:101190488885:web:f0401ddd67b862f163b27c"
     };
-    // The old Supabase endpoint, kept only for the one-time import of
-    // bookmark-era history after first sign-in. URL and anon key are public
-    // values; the tenant secret (the sync-key hash) never leaves localStorage.
-    const LEGACY_SUPABASE_URL = "https://nasqsmpwovgpyjepgidi.supabase.co";
-    const LEGACY_SUPABASE_ANON_KEY = "sb_publishable_X9E1yEANHLdWINHEAAVZ6w_lNn_xw2G";
     const defaultSessionSeconds = 30 * 60;
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -551,7 +544,7 @@
     }
 
     function loadState() {
-      // Breaks are deliberately local-only: they never reach Supabase or the stats.
+      // Breaks are deliberately local-only: they never reach Firestore or the stats.
       const fallback = {
         sessions: [],
         activeSession: null,
@@ -658,14 +651,6 @@
     function setSyncStatus(label, status = "local") {
       els.syncStatus.textContent = label;
       els.syncStatus.dataset.status = status;
-    }
-
-    function loadLegacyConfig() {
-      try {
-        return JSON.parse(localStorage.getItem(legacyConfigStorageKey) || "null");
-      } catch {
-        return null;
-      }
     }
 
     async function sha256(value) {
@@ -1427,40 +1412,6 @@
         .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt));
     }
 
-    // One-time, per device: everything this device knows locally (on a
-    // synced device that is the full fetched history) plus whatever the old
-    // Supabase tenant still returns, pushed create-only under the account.
-    // Preserved ids make re-runs and device races harmless.
-    async function importLegacyIfNeeded() {
-      if (localStorage.getItem(authMigratedStorageKey) === "done") return;
-
-      const known = state.sessions.filter((session) => session.id && session.completedAt);
-
-      let legacyRows = [];
-      const legacy = loadLegacyConfig();
-      if (legacy && legacy.syncKeyHash) {
-        try {
-          const response = await fetch(`${LEGACY_SUPABASE_URL}/rest/v1/rpc/list_focus_sessions`, {
-            method: "POST",
-            headers: {
-              "apikey": LEGACY_SUPABASE_ANON_KEY,
-              "Authorization": `Bearer ${LEGACY_SUPABASE_ANON_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ p_sync_key_hash: legacy.syncKeyHash })
-          });
-          if (response.ok) legacyRows = (await response.json()).map(normalizeRemoteSession);
-        } catch (error) {
-          console.warn("Legacy Supabase read failed (will retry next sign-in):", error);
-        }
-      }
-
-      const byId = new Map();
-      for (const row of [...known, ...legacyRows]) byId.set(row.id, row);
-      for (const row of byId.values()) await fsCreateSession(row);
-      localStorage.setItem(authMigratedStorageKey, "done");
-    }
-
     function normalizeRemoteSession(session) {
       const completedAt = session.completed_at || session.completedAt;
       return {
@@ -1730,7 +1681,6 @@
               localStorage.removeItem(syncCursorsStorageKey);
             }
             localStorage.setItem(lastUidStorageKey, user.uid);
-            await importLegacyIfNeeded();
             await syncSessions(true);
           } catch (error) {
             console.warn(error);
