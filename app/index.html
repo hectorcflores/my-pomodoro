@@ -201,51 +201,73 @@
       height: 13px;
     }
 
-    .sync-status {
+    /* The wrapper owns the corner position; the two controls inside it are
+       the shared block below and carry no positioning of their own. Capped
+       width + wrapping so they can never run into the .streak pill on the
+       left on a narrow screen. */
+    .account-bar {
       position: absolute;
-      top: 14px;
+      top: 12px;
       right: 16px;
-      display: inline-flex;
+      display: flex;
       align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
       gap: 6px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1.3;
-      border: 1px solid var(--line);
-      border-radius: 999px;
+      max-width: calc(100% - 120px);
+    }
+
+    /* ---- Shared account + sync controls (identical across Pomodoro,
+       Reading List and Brain Gym; literal hex so it doesn't depend on each
+       app's own token names). Identity and sync health are deliberately two
+       separate controls: one answers "who am I", the other "are my data
+       safe". ---- */
+    .account {
+      display: inline-flex; align-items: center; gap: 7px;
+      min-height: 0; padding: 3px 10px 3px 4px;
+      border: 1px solid #27272a; border-radius: 999px;
+      background: transparent; color: #fafafa;
+      font: inherit; font-size: 12px; font-weight: 500; line-height: 1.3;
+      cursor: pointer;
+    }
+    .account .av {
+      width: 20px; height: 20px; border-radius: 999px;
+      background: #27272a; color: #fafafa;
+      font-size: 11px; font-weight: 600;
+      display: grid; place-items: center;
+    }
+    .account.out {
+      padding: 3px 11px; border-color: transparent;
+      background: #fafafa; color: #18181b; font-weight: 600;
+    }
+    .account.off { cursor: default; opacity: 0.6; color: #a1a1aa; }
+    .account:focus-visible, .sync-status:focus-visible { outline: 2px solid #52525b; outline-offset: 2px; }
+
+    .sync-status {
+      display: inline-flex; align-items: center; gap: 6px;
       padding: 3px 10px;
+      border: 1px solid #27272a; border-radius: 999px;
+      color: #a1a1aa;
+      font: inherit; font-size: 12px; font-weight: 500; line-height: 1.3;
+      font-variant-numeric: tabular-nums; white-space: nowrap;
     }
-
     .sync-status::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 999px;
-      background: #f87171;
+      content: ""; width: 6px; height: 6px; border-radius: 999px;
+      background: #52525b; flex: 0 0 auto;
     }
-
-    .sync-status[data-status="synced"]::before,
-    .sync-status[data-status="syncing"]::before {
-      background: #4ade80;
+    .sync-status[data-status="synced"]::before { background: #4ade80; }
+    .sync-status[data-status="syncing"]::before { background: #4ade80; animation: sync-pulse 1.1s ease-in-out infinite; }
+    .sync-status[data-status="pending"] { color: #fbbf24; }
+    .sync-status[data-status="pending"]::before { background: #fbbf24; }
+    .sync-status[data-status="issue"] { color: #f87171; }
+    .sync-status[data-status="issue"]::before { background: #f87171; }
+    @keyframes sync-pulse {
+      0%, 100% { opacity: 0.35; transform: scale(0.82); }
+      50%      { opacity: 1;    transform: scale(1.16); }
     }
-
-    .sync-status[data-status="syncing"]::before {
-      animation: pulse 1.1s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%,
-      100% {
-        opacity: 0.35;
-        transform: scale(0.82);
-      }
-
-      50% {
-        opacity: 1;
-        transform: scale(1.18);
-      }
-    }
+    @media (prefers-reduced-motion: reduce) { .sync-status::before { animation: none !important; } }
+    /* Narrow screens: the account keeps its avatar, drops the name. */
+    @media (max-width: 430px) { .account .nm { display: none; } .account { padding: 3px 4px; } }
 
     .week-pace {
       display: grid;
@@ -462,7 +484,10 @@
       </div>
     </section>
 
-    <div class="sync-status" id="syncStatus" data-status="local">Local only</div>
+    <div class="account-bar">
+      <div class="sync-status" id="syncStatus" data-status="local" aria-live="polite">Local only</div>
+      <button class="account out" id="accountBtn" type="button">Sign in</button>
+    </div>
   </main>
 
   <script>
@@ -471,6 +496,7 @@
     const pendingStorageKey = "focus-sessions.pending.v1";
     const syncCursorsStorageKey = "focus-sessions.sync-cursors.v1";
     const clientIdStorageKey = "focus-sessions.client-id.v1";
+    const lastSyncStorageKey = "focus-sessions.last-sync.v1";
     // Firebase web config is public by design; identity and access control
     // come from Google sign-in + Firestore rules, not these values.
     const FIREBASE = {
@@ -505,6 +531,7 @@
       breakButtons: Array.from(document.querySelectorAll("[data-break-minutes]")),
       skipBreakButton: document.querySelector("#skipBreakButton"),
       syncStatus: document.querySelector("#syncStatus"),
+      accountBtn: document.querySelector("#accountBtn"),
       hourGrid: document.querySelector("#hourGrid"),
       todayFill: document.querySelector("#todayFill"),
       todayCount: document.querySelector("#todayCount"),
@@ -530,6 +557,23 @@
     let authApi = null;         // { signIn, signOutUser } from the module script
     let authState = "loading";  // loading | out | in | unavailable
     let audioContext = null;
+    // local | syncing | synced | pending | offline | issue
+    let syncState = "local";
+    let syncPendingCount = 0;
+    let syncAgoTimer = null;
+    let lastSyncAt = loadLastSyncAt();
+
+    function loadLastSyncAt() {
+      const stored = Number(localStorage.getItem(lastSyncStorageKey));
+      return Number.isFinite(stored) && stored > 0 ? stored : 0;
+    }
+
+    // Persisted so "Synced · 2m" survives a reload instead of resetting to
+    // a bare "Synced" that says nothing about how fresh the data are.
+    function setLastSyncAt(ts) {
+      lastSyncAt = ts;
+      try { localStorage.setItem(lastSyncStorageKey, String(ts)); } catch { /* quota: cosmetic only */ }
+    }
 
     function todayKey(date = new Date()) {
       const year = date.getFullYear();
@@ -648,9 +692,99 @@
       }
     }
 
-    function setSyncStatus(label, status = "local") {
-      els.syncStatus.textContent = label;
+    // ---- Sync status pill: data health only, never clickable ----
+    // The pill is state-driven; the label is DERIVED from the state so the
+    // three sibling apps can't drift into saying different words for the
+    // same condition. States: local | syncing | synced | pending | offline | issue.
+
+    // "just now" under a minute, then 4m / 3h / 2d.
+    function syncAgo(ts) {
+      if (!ts) return "";
+      const s = (Date.now() - ts) / 1000;
+      if (s < 60) return "just now";
+      const m = s / 60;
+      if (m < 60) return Math.round(m) + "m";
+      const h = m / 60;
+      if (h < 24) return Math.round(h) + "h";
+      return Math.round(h / 24) + "d";
+    }
+
+    function syncLabelFor(status) {
+      if (status === "syncing") return "Syncing";
+      if (status === "synced") {
+        const ago = syncAgo(lastSyncAt);
+        return ago ? `Synced · ${ago}` : "Synced";
+      }
+      if (status === "pending") return `${syncPendingCount} pending`;
+      if (status === "offline") return "Offline";
+      if (status === "issue") return "Sync issue";
+      return "Local only";
+    }
+
+    function setSyncStatus(status = "local", extra) {
+      syncState = status;
+      if (status === "pending") syncPendingCount = Number(extra) || 0;
       els.syncStatus.dataset.status = status;
+      els.syncStatus.textContent = syncLabelFor(status);
+      updateSyncAgoTimer();
+    }
+
+    // Keep the "· 2m" honest on a tab left open, without polling anything.
+    function updateSyncAgoTimer() {
+      const wanted = syncState === "synced" && lastSyncAt > 0;
+      if (wanted && !syncAgoTimer) {
+        syncAgoTimer = setInterval(() => {
+          if (syncState !== "synced") return;
+          els.syncStatus.textContent = syncLabelFor("synced");
+        }, 60 * 1000);
+      } else if (!wanted && syncAgoTimer) {
+        clearInterval(syncAgoTimer);
+        syncAgoTimer = null;
+      }
+    }
+
+    // ---- Account button: identity only ----
+    // Built with DOM nodes rather than innerHTML so an email can never be
+    // interpreted as markup (this file has no esc() helper).
+    function renderAccount() {
+      const button = els.accountBtn;
+      if (!button) return;
+      button.classList.remove("out", "off");
+      button.removeAttribute("title");
+      button.disabled = false;
+      button.hidden = false;
+      button.textContent = "";
+
+      if (authState === "in") {
+        const email = (authUser && authUser.email) || "Signed in";
+        const name = email.split("@")[0];
+        button.title = `${email} — sign out`;
+        const avatar = document.createElement("span");
+        avatar.className = "av";
+        avatar.textContent = name.slice(0, 1).toUpperCase();
+        const label = document.createElement("span");
+        label.className = "nm";
+        label.textContent = name;
+        button.append(avatar, label);
+        return;
+      }
+
+      if (authState === "unavailable") {
+        button.classList.add("off");
+        button.disabled = true;
+        button.title = "Google sign-in unreachable";
+        button.textContent = "offline";
+        return;
+      }
+
+      if (authState === "out") {
+        button.classList.add("out");
+        button.textContent = "Sign in";
+        return;
+      }
+
+      // loading: nothing useful to offer yet.
+      button.hidden = true;
     }
 
     async function sha256(value) {
@@ -1435,7 +1569,6 @@
     const RATE_LIMIT_BACKOFF_MS = 5 * 60e3;
     const DELETE_LOOKBACK_MS = 10 * 60e3;
     let syncInFlight = false;
-    let lastSyncAt = 0;
     let backoffUntil = 0;
 
     async function seedSync() {
@@ -1472,7 +1605,11 @@
 
     async function syncSessions(force = false) {
       if (!isSyncEnabled()) {
-        setSyncStatus(authState === "unavailable" ? "Offline" : "Sign in to sync", authState === "unavailable" ? "issue" : "local");
+        setSyncStatus(authState === "unavailable" ? "offline" : "local");
+        return false;
+      }
+      if (!navigator.onLine) {
+        setSyncStatus("offline");
         return false;
       }
       const now = Date.now();
@@ -1481,7 +1618,7 @@
 
       syncInFlight = true;
       try {
-        setSyncStatus("Syncing", "syncing");
+        setSyncStatus("syncing");
         const cursors = loadCursors();
         if (cursors) {
           await deltaSync(cursors);
@@ -1502,19 +1639,22 @@
         // server lacks, and they should reach it in this same pass.
         const flush = await flushPending();
         if (flush.error) throw flush.error;
-        lastSyncAt = Date.now();
+        setLastSyncAt(Date.now());
         saveState();
         render();
-        setSyncStatus("Synced", "synced");
+        // Rows that couldn't be pushed are the one thing the user can act on
+        // (stay online a moment longer), so say how many rather than hiding it.
+        if (flush.remaining > 0) setSyncStatus("pending", flush.remaining);
+        else setSyncStatus("synced");
         return true;
       } catch (error) {
         console.warn(error);
         if (error && error.status === 429) {
           backoffUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
-          setSyncStatus("Rate limited", "issue");
+          setSyncStatus("issue");
           setTimeout(() => syncSessions(), RATE_LIMIT_BACKOFF_MS + 1000);
         } else {
-          setSyncStatus("Sync issue", "issue");
+          setSyncStatus(navigator.onLine ? "issue" : "offline");
         }
         return false;
       } finally {
@@ -1526,19 +1666,25 @@
       // Queue first: the session is safe locally whatever the network does.
       addPending(session);
       if (!isSyncEnabled()) {
-        setSyncStatus("Sign in to sync", "local");
+        setSyncStatus(authState === "unavailable" ? "offline" : "local");
+        return;
+      }
+      if (!navigator.onLine) {
+        setSyncStatus("offline");
         return;
       }
 
-      setSyncStatus("Syncing", "syncing");
+      setSyncStatus("syncing");
       const flush = await flushPending();
       if (!flush.error) {
-        setSyncStatus("Synced", "synced");
+        setLastSyncAt(Date.now());
+        if (flush.remaining > 0) setSyncStatus("pending", flush.remaining);
+        else setSyncStatus("synced");
       } else if (flush.error.status === 429) {
         backoffUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
-        setSyncStatus("Rate limited", "issue");
+        setSyncStatus("issue");
       } else {
-        setSyncStatus("Sync issue", "issue");
+        setSyncStatus(navigator.onLine ? "issue" : "offline");
       }
     }
 
@@ -1549,29 +1695,30 @@
       if (wasPending) savePending(pending.filter((row) => row.id !== session.id));
 
       if (!isSyncEnabled()) {
-        setSyncStatus("Sign in to sync", "local");
+        setSyncStatus(authState === "unavailable" ? "offline" : "local");
         return;
       }
 
       try {
-        setSyncStatus("Syncing", "syncing");
+        setSyncStatus("syncing");
         await fsSoftDelete(session.id);
-        setSyncStatus("Synced", "synced");
+        setLastSyncAt(Date.now());
+        setSyncStatus("synced");
       } catch (error) {
         // A 404/412 here just means the session was still queued and never
         // written — removing it from the queue above already undid it.
         if (wasPending) {
-          setSyncStatus("Synced", "synced");
+          setSyncStatus("synced");
         } else {
           console.warn(error);
-          setSyncStatus("Sync issue", "issue");
+          setSyncStatus(navigator.onLine ? "issue" : "offline");
         }
       }
     }
 
     els.mainButton.addEventListener("click", handleMainAction);
-    els.syncStatus.style.cursor = "pointer";
-    els.syncStatus.addEventListener("click", async () => {
+    // Identity lives on the account button; the sync pill is display-only.
+    els.accountBtn.addEventListener("click", async () => {
       if (authState === "out") {
         try { await authApi.signIn(); } catch (error) { console.warn(error); }
       } else if (authState === "in" && confirm("Sign out of sync on this device?")) {
@@ -1600,6 +1747,15 @@
     });
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) syncSessions();
+    });
+
+    // Losing the network is a data-health fact, not an error: say so plainly
+    // instead of letting the next failed fetch report "Sync issue".
+    window.addEventListener("offline", () => {
+      if (authState === "in") setSyncStatus("offline");
+    });
+    window.addEventListener("online", () => {
+      if (authState === "in") syncSessions(true);
     });
 
     // ---- Self-update ----
@@ -1663,12 +1819,17 @@
         api.onAuthChange(async (user) => {
           authUser = user;
           authState = user ? "in" : "out";
+          renderAccount();
           if (!user) {
-            setSyncStatus("Sign in to sync", "local");
+            setSyncStatus("local");
+            return;
+          }
+          if (!navigator.onLine) {
+            setSyncStatus("offline");
             return;
           }
           try {
-            setSyncStatus("Syncing", "syncing");
+            setSyncStatus("syncing");
             // The local cache belongs to whichever account last synced on
             // this device. If a DIFFERENT account signs in, that cache must
             // not be pushed into the new account's data — drop it and adopt
@@ -1684,19 +1845,21 @@
             await syncSessions(true);
           } catch (error) {
             console.warn(error);
-            setSyncStatus("Sync issue", "issue");
+            setSyncStatus(navigator.onLine ? "issue" : "offline");
           }
         });
       },
       unavailable(error) {
         console.warn(error);
         authState = "unavailable";
-        setSyncStatus("Offline", "issue");
+        renderAccount();
+        setSyncStatus("offline");
       }
     };
 
     async function init() {
-      setSyncStatus("Loading", "local");
+      setSyncStatus("local");
+      renderAccount();
 
       if ((state.activeSession && !state.activeSession.paused) || state.activeBreak) {
         startTick();
