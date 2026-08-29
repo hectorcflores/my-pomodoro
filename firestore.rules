@@ -1,8 +1,8 @@
 rules_version = '2';
 
 // ONE ruleset for the whole personal app suite (project my-reading-list-3fa75):
-// Reading List, Brain Gym, and Pomodoro. Publishing this file REPLACES any
-// rules previously published for either app individually.
+// Reading List, My Anki (formerly Brain Gym) and Pomodoro. Publishing this
+// file REPLACES any rules previously published for any app individually.
 //
 // Tenancy: the signed-in Google account. Every live path embeds the uid and
 // every rule checks request.auth.uid against it.
@@ -56,6 +56,52 @@ service cloud.firestore {
     match /brain_gym/{uid}/meta/{docId} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid) && docId == 'baseline' && isValidBaseline();
+      allow update, delete: if false;
+
+      function isValidBaseline() {
+        return request.resource.data.keys().hasOnly(['state', 'takenAt', 'createdAt'])
+          && request.resource.data.state is map
+          && request.resource.data.takenAt is timestamp
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+
+    // ---- My Anki (live) ----
+    // Brain Gym renamed in 2026-08 and moved to its own repo. Same document
+    // shapes; the app copies brain_gym/{uid} across on first sign-in. The old
+    // section above stays until both of Hector's devices are confirmed on the
+    // new build — an installed home-screen copy of the old app still writes
+    // there, and the import and stray probe still read it.
+    match /my_anki/{uid}/reviews/{reviewId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidReview();
+      allow update, delete: if false;
+
+      function isValidReview() {
+        return request.resource.data.keys().hasOnly(['cardId', 'grade', 'reviewedAt', 'clientId', 'createdAt'])
+          && request.resource.data.cardId is string
+          && request.resource.data.cardId.matches('^[a-f0-9]{16}$')
+          && request.resource.data.grade is int
+          && request.resource.data.grade >= 0
+          && request.resource.data.grade <= 3
+          && request.resource.data.reviewedAt is timestamp
+          && request.resource.data.clientId is string
+          && request.resource.data.clientId.size() >= 1
+          && request.resource.data.clientId.size() <= 64
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+
+    match /my_anki/{uid}/meta/{docId} {
+      allow read: if isOwner(uid);
+      // Unlike the old section, the per-device residue docs reconcile() can
+      // publish are permitted. It writes `baseline_<clientId>` when it finds
+      // local-only history with no server counterpart, and the old rule
+      // allowed only the exact id 'baseline' — so that write was rejected and
+      // the history it was trying to preserve stayed on one device.
+      allow create: if isOwner(uid)
+        && (docId == 'baseline' || docId.matches('^baseline_.+'))
+        && isValidBaseline();
       allow update, delete: if false;
 
       function isValidBaseline() {
