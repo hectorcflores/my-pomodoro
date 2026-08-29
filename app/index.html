@@ -218,7 +218,7 @@
     }
 
     /* ---- Shared account + sync controls (identical across Pomodoro,
-       Reading List and Brain Gym; literal hex so it doesn't depend on each
+       Reading List and My Anki; literal hex so it doesn't depend on each
        app's own token names). Identity and sync health are deliberately two
        separate controls: one answers "who am I", the other "are my data
        safe". ---- */
@@ -1328,7 +1328,7 @@
     }
 
     // ---- Firestore REST: minimal typed-value encode/decode (same approach
-    // as brain-gym — the SDK is only loaded for Auth, not for data) ----
+    // as my-anki — the SDK is only loaded for Auth, not for data) ----
     function fsValue(v) {
       if (v === null || v === undefined) return { nullValue: null };
       if (typeof v === "string") return { stringValue: v };
