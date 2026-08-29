@@ -70,7 +70,7 @@ service cloud.firestore {
     // Brain Gym renamed in 2026-08 and moved to its own repo. Same document
     // shapes; the app copies brain_gym/{uid} across on first sign-in. The old
     // section above stays until both of Hector's devices are confirmed on the
-    // new build — an installed home-screen copy of the old app still writes
+    // new build -- an installed home-screen copy of the old app still writes
     // there, and the import and stray probe still read it.
     match /my_anki/{uid}/reviews/{reviewId} {
       allow read: if isOwner(uid);
@@ -97,7 +97,7 @@ service cloud.firestore {
       // Unlike the old section, the per-device residue docs reconcile() can
       // publish are permitted. It writes `baseline_<clientId>` when it finds
       // local-only history with no server counterpart, and the old rule
-      // allowed only the exact id 'baseline' — so that write was rejected and
+      // allowed only the exact id 'baseline' -- so that write was rejected and
       // the history it was trying to preserve stayed on one device.
       allow create: if isOwner(uid)
         && (docId == 'baseline' || docId.matches('^baseline_.+'))
