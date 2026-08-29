@@ -2,8 +2,9 @@ name: Weekly pomodoro email
 
 on:
   schedule:
-    # 6:00 AM Saturday in America/Mexico_City (UTC-6).
-    - cron: "0 12 * * 6"
+    # ~5:37 AM Saturday in America/Mexico_City. Off-peak minute on purpose:
+    # GitHub silently drops top-of-hour crons under load (it ate 0 12 on 2026-08-29).
+    - cron: "37 11 * * 6"
   workflow_dispatch:
 
 jobs:
