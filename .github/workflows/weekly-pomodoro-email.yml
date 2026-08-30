@@ -35,3 +35,21 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           REPORT_RECIPIENT_EMAIL: ${{ secrets.REPORT_RECIPIENT_EMAIL }}
         run: python3 scripts/weekly_email.py
+
+      # Heartbeat for healthchecks.io. Success says "I ran"; failure pings
+      # /fail with a link to the run, so the alert carries the same context
+      # GitHub's own failure email does -- that email is what this replaces.
+      - name: Heartbeat
+        if: success()
+        env:
+          HC_PING_URL: ${{ secrets.HC_PING_URL }}
+        run: curl -fsS -m 10 --retry 3 "$HC_PING_URL" || true
+
+      - name: Heartbeat (failure)
+        if: failure()
+        env:
+          HC_PING_URL: ${{ secrets.HC_PING_URL }}
+        run: |
+          curl -fsS -m 10 --retry 3 \
+            --data-raw "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            "$HC_PING_URL/fail" || true
