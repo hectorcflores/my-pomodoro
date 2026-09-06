@@ -497,6 +497,11 @@
     const syncCursorsStorageKey = "focus-sessions.sync-cursors.v1";
     const clientIdStorageKey = "focus-sessions.client-id.v1";
     const lastSyncStorageKey = "focus-sessions.last-sync.v1";
+    const ownerStorageKey = "focus-sessions.owner.v1";
+    // A running session unseen for this long is abandoned, not paused: it is
+    // dropped instead of resumed, so a laptop closed on Friday can't log a
+    // six-minute "session" on Monday.
+    const staleSessionMaxAbsenceMs = 2 * 60 * 60 * 1000;
     // Firebase web config is public by design; identity and access control
     // come from Google sign-in + Firestore rules, not these values.
     const FIREBASE = {
@@ -551,7 +556,8 @@
       streakCount: document.querySelector("#streakCount")
     };
 
-    let state = loadState();
+    // Loaded as a mirror; the ownership claim in init() decides who ticks.
+    let state = loadState({ witness: false });
     let tick = null;
     let authUser = null;        // { uid, email, getToken() } once signed in
     let authApi = null;         // { signIn, signOutUser } from the module script
@@ -587,7 +593,10 @@
       return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     }
 
-    function loadState() {
+    // Read the shared state. `witness` stamps the running session as seen
+    // now — only the instance that owns the clock may do that; a mirror
+    // reading the owner's saves must leave the timestamps as written.
+    function loadState({ witness = true } = {}) {
       // Breaks are deliberately local-only: they never reach Firestore or the stats.
       const fallback = {
         sessions: [],
@@ -623,7 +632,9 @@
             lastSeenAt: new Date().toISOString(),
             paused: active.pausedRemainingSeconds != null
           };
-        } else if (active) {
+        } else if (active && isAbandoned(active)) {
+          active = null;
+        } else if (active && witness) {
           // The absence between saves was unwitnessed; it does not count.
           active.lastSeenAt = new Date().toISOString();
         }
@@ -642,8 +653,101 @@
       }
     }
 
+    function isAbandoned(active, now = Date.now()) {
+      const last = new Date(active.lastSeenAt).getTime();
+      return Number.isFinite(last) && now - last > staleSessionMaxAbsenceMs;
+    }
+
+    // Only the owner writes — and only while the shared token still names
+    // it. A tab Chrome suspended can wake up and run a tick before it hears
+    // that its lock was taken; the token check turns that write into a
+    // demotion instead of a clobber.
     function saveState() {
+      if (!isOwner) return;
+      if (localStorage.getItem(ownerStorageKey) !== instanceId) {
+        loseOwnership();
+        return;
+      }
       localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    // ---- One owner per device ----
+    // Several instances of this page can be open at once (two tabs, or a
+    // tab beside the installed window). Each holds its own copy of the state
+    // in memory, so if all of them wrote, the last writer would win — a tab
+    // idle for two days re-imposed its stale sessions the moment it was
+    // focused (2026-09-05). So exactly one instance owns the clock and the
+    // writes: the holder of a Web Lock, recorded in localStorage as the
+    // owner token. The others are mirrors: they follow the shared state
+    // through `storage` events and never write. The instance the user
+    // looks at or touches takes the lock over; when the owner closes, the
+    // lock passes to whoever is waiting. Chrome also exempts a page holding
+    // a lock from intensive background throttling, so the owner keeps
+    // ticking once a second while hidden.
+    const ownerLockName = "focus-sessions-owner";
+    const instanceId = createId();
+    let isOwner = false;
+
+    function claimOwnership({ steal = false } = {}) {
+      if (isOwner) return Promise.resolve();
+      if (!navigator.locks) {
+        becomeOwner();
+        return Promise.resolve();
+      }
+      return new Promise((granted) => {
+        navigator.locks.request(ownerLockName, { steal }, () => new Promise(() => {
+          // Held for this instance's lifetime; released by a steal or by
+          // the page going away. A late grant of an earlier queued request
+          // simply confirms what a steal already established.
+          if (!isOwner) becomeOwner();
+          granted();
+        })).catch((error) => {
+          // Stolen: step down, and queue to inherit the clock back when the
+          // new owner goes away. Any other failure just leaves us a mirror.
+          loseOwnership();
+          if (error && error.name === "AbortError") claimOwnership();
+        });
+      });
+    }
+
+    function takeOver() {
+      return claimOwnership({ steal: true });
+    }
+
+    function becomeOwner() {
+      isOwner = true;
+      localStorage.setItem(ownerStorageKey, instanceId);
+      // Adopt the previous owner's last save before touching anything, and
+      // write it back so a session dropped as abandoned is gone for good.
+      state = loadState({ witness: true });
+      if ((state.activeSession && !state.activeSession.paused) || state.activeBreak) startTick();
+      render();
+      saveState();
+    }
+
+    function loseOwnership() {
+      if (!isOwner) return;
+      isOwner = false;
+      stopTick();
+      state = loadState({ witness: false });
+      render();
+    }
+
+    // Mirrors follow every save the owner makes, second by second.
+    function followSharedState(event) {
+      if (isOwner) {
+        // Another instance took the token: step down at once.
+        if (event.key === ownerStorageKey && event.newValue !== instanceId) loseOwnership();
+        return;
+      }
+      if (event.key === null || event.key === storageKey) {
+        state = loadState({ witness: false });
+        render();
+      }
+      if (event.key === null || event.key === lastSyncStorageKey) {
+        lastSyncAt = loadLastSyncAt();
+        if (syncState === "synced") setSyncStatus("synced");
+      }
     }
 
     // ---- Witnessed time ----
@@ -658,38 +762,16 @@
       const active = state.activeSession;
       if (!active || active.paused) return;
       const now = Date.now();
+      if (isAbandoned(active, now)) {
+        // Gone too long to be a pause: drop it, log nothing.
+        state.activeSession = null;
+        stopTickIfIdle();
+        return;
+      }
       const last = new Date(active.lastSeenAt).getTime();
       const gap = Number.isFinite(last) ? now - last : 0;
       active.elapsedMs += Math.max(0, Math.min(gap, witnessGapCapMs));
       active.lastSeenAt = new Date(now).toISOString();
-    }
-
-    // Chrome exempts pages holding a Web Lock from intensive background
-    // throttling, so a hidden tab keeps ticking about once a second and the
-    // countdown stays accurate while you work elsewhere. The wanted flag
-    // covers the grant race: a lock released before the browser granted it
-    // must not end up held forever.
-    let tickLockWanted = false;
-    let tickLockRelease = null;
-
-    function holdTickLock() {
-      if (tickLockWanted || !navigator.locks) return;
-      tickLockWanted = true;
-      navigator.locks.request("focus-sessions-ticking", () => new Promise((resolve) => {
-        if (!tickLockWanted) {
-          resolve();
-          return;
-        }
-        tickLockRelease = resolve;
-      })).catch(() => { tickLockRelease = null; });
-    }
-
-    function dropTickLock() {
-      tickLockWanted = false;
-      if (tickLockRelease) {
-        tickLockRelease();
-        tickLockRelease = null;
-      }
     }
 
     // ---- Sync status pill: data health only, never clickable ----
@@ -823,9 +905,10 @@
       saveState();
     }
 
-    function startBreak(minutes) {
-      if (state.activeSession) return;
+    async function startBreak(minutes) {
       prepareAlerts();
+      await takeOver();
+      if (state.activeSession) return;
       state.activeBreak = {
         startedAt: new Date().toISOString(),
         durationSeconds: minutes * 60
@@ -843,7 +926,8 @@
       state.breakNudgeSent = false;
     }
 
-    function skipBreak() {
+    async function skipBreak() {
+      await takeOver();
       clearBreak();
       stopTickIfIdle();
       render();
@@ -890,6 +974,7 @@
     function pauseSession() {
       if (!state.activeSession) return;
       witnessTime();
+      if (!state.activeSession) return; // dropped as abandoned
       state.activeSession.paused = true;
       stopTick();
       render();
@@ -905,8 +990,11 @@
       saveState();
     }
 
-    function handleMainAction() {
+    // Every interaction takes the clock over first (a click on a mirror
+    // makes it the owner), then acts on the freshest shared state.
+    async function handleMainAction() {
       prepareAlerts();
+      await takeOver();
 
       if (!state.activeSession) {
         startSession();
@@ -941,7 +1029,8 @@
       createRemoteSession(session);
     }
 
-    function undoLast() {
+    async function undoLast() {
+      await takeOver();
       const today = todayKey();
       const index = state.sessions.map((session) => session.date).lastIndexOf(today);
       if (index >= 0) {
@@ -968,7 +1057,7 @@
 
     function startTick() {
       stopTick();
-      holdTickLock();
+      if (!isOwner) return;
       tick = setInterval(() => {
         witnessTime();
         settleExpiredSession();
@@ -979,7 +1068,6 @@
     }
 
     function stopTick() {
-      dropTickLock();
       if (tick) {
         clearInterval(tick);
         tick = null;
@@ -1010,8 +1098,11 @@
     }
 
     function render() {
-      settleExpiredSession();
-      settleExpiredBreak();
+      // Settling completes sessions and writes; a mirror only draws.
+      if (isOwner) {
+        settleExpiredSession();
+        settleExpiredBreak();
+      }
       const today = sessionsToday();
       const onBreak = Boolean(state.activeBreak);
       const remaining = remainingSeconds();
@@ -1507,28 +1598,36 @@
       savePending(rows);
     }
 
+    // Remove one row by id, re-reading the queue first: a session can be
+    // completed while an earlier push is still in flight, and a write-back
+    // of a pre-await copy would silently erase it.
+    function removePending(id) {
+      savePending(loadPending().filter((row) => row.id !== id));
+    }
+
     // Push every queued row create-only (409 = already there, done). Rows
     // that fail transiently stay queued; malformed rows are dropped so one
     // bad row can never wedge the queue. Returns the first error seen so the
     // caller can surface rate limiting.
     async function flushPending() {
       let firstError = null;
-      const remaining = [];
+      let remaining = 0;
       for (const row of loadPending()) {
         if (!isValidSessionRow(row)) {
           console.warn("Dropping malformed pending session:", row);
+          savePending(loadPending().filter(isValidSessionRow));
           continue;
         }
         try {
           await fsCreateSession(row);
+          removePending(row.id);
         } catch (error) {
           console.warn("Keeping pending session for retry:", row.id, error);
           firstError = firstError || error;
-          remaining.push(row);
+          remaining += 1;
         }
       }
-      savePending(remaining);
-      return { remaining: remaining.length, error: firstError };
+      return { remaining, error: firstError };
     }
 
     function loadCursors() {
@@ -1604,6 +1703,13 @@
     }
 
     async function syncSessions(force = false) {
+      // Syncing merges into the state and saves it: the owner's job. A
+      // mirror sees the result through the storage event like any other
+      // save, and its pill reports the shared last-sync time.
+      if (!isOwner) {
+        setSyncStatus(isSyncEnabled() && lastSyncAt ? "synced" : "local");
+        return false;
+      }
       if (!isSyncEnabled()) {
         setSyncStatus(authState === "unavailable" ? "offline" : "local");
         return false;
@@ -1690,9 +1796,8 @@
 
     async function undoRemoteSession(session) {
       // If it never reached the server it only needs to leave the queue.
-      const pending = loadPending();
-      const wasPending = pending.some((row) => row.id === session.id);
-      if (wasPending) savePending(pending.filter((row) => row.id !== session.id));
+      const wasPending = loadPending().some((row) => row.id === session.id);
+      if (wasPending) removePending(session.id);
 
       if (!isSyncEnabled()) {
         setSyncStatus(authState === "unavailable" ? "offline" : "local");
@@ -1741,13 +1846,16 @@
       button.addEventListener("click", () => startBreak(Number(button.dataset.breakMinutes)));
     });
 
-    window.addEventListener("beforeunload", saveState);
+    // No save on unload: every mutation already saves, and a stale tab's
+    // parting write is exactly the clobber this design exists to prevent.
+    // The instance the user looks at owns the clock; then it syncs.
     window.addEventListener("focus", () => {
-      syncSessions();
+      takeOver().then(() => syncSessions());
     });
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) syncSessions();
+      if (!document.hidden) takeOver().then(() => syncSessions());
     });
+    window.addEventListener("storage", followSharedState);
 
     // Losing the network is a data-health fact, not an error: say so plainly
     // instead of letting the next failed fetch report "Sync issue".
@@ -1860,13 +1968,15 @@
     async function init() {
       setSyncStatus("local");
       renderAccount();
-
-      if ((state.activeSession && !state.activeSession.paused) || state.activeBreak) {
-        startTick();
-      }
-
       render();
+
+      // The instance in front takes the clock; a background one queues for
+      // it and inherits it when the owner closes. becomeOwner() starts the
+      // tick if a session or break is running.
+      claimOwnership({ steal: !document.hidden });
+
       setInterval(() => {
+        if (!isOwner) return;
         maybeShowBreakNudge();
         maybeShowIdleNudge();
       }, 30 * 1000);

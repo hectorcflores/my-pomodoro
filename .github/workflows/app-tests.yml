@@ -1,0 +1,28 @@
+name: App tests
+
+# The multi-instance harness in tests/ is the merge gate for app/index.html:
+# two simulated tabs sharing one localStorage, one Web Locks manager and one
+# in-memory Firestore. Plain Node, no dependencies, runs in under a second.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Multi-instance harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run tests
+        run: node --test tests/*.test.js
