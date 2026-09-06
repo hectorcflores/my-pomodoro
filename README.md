@@ -32,6 +32,21 @@ service account (`FIREBASE_SERVICE_ACCOUNT` secret, JSON) via a
 collection-group query, so it needs no uid. Runs from
 `.github/workflows/weekly-pomodoro-email.yml`; requires `google-auth`.
 
+## Tests
+
+```bash
+node --test tests/*.test.js
+```
+
+`tests/harness.js` runs the app's main script in one `vm` context per
+simulated tab, sharing one localStorage (with `storage` events), one Web
+Locks manager, one virtual clock and an in-memory Firestore. The scenarios
+in `tests/multi-instance.test.js` pin down the one-owner-per-device rule:
+only the tab in front counts time and writes, mirrors follow, a stale tab
+can neither clobber on focus nor on close, an abandoned session is dropped
+rather than logged, and the outbox never loses a row queued mid-flush.
+`.github/workflows/app-tests.yml` runs it on every push and pull request.
+
 ## GitHub Pages
 
 Publish this repository with GitHub Pages from the root of the `main` branch. The root `index.html` redirects to `app/index.html`.
