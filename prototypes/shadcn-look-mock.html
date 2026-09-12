@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Focus Sessions — shadcn/ui look</title>
+  <link rel="icon" href="../app/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* shadcn/ui dark theme tokens (zinc) */
+    :root {
+      --background: #09090b;
+      --foreground: #fafafa;
+      --card: #09090b;
+      --border: #27272a;
+      --input: #27272a;
+      --muted: #27272a;
+      --muted-foreground: #a1a1aa;
+      --primary: #fafafa;
+      --primary-foreground: #18181b;
+      --accent: #27272a;
+      --radius: 8px;
+      font-family: "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; border-color: var(--border); }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 14px;
+    }
+
+    /* Card */
+    .app {
+      position: relative;
+      display: grid;
+      gap: 24px;
+      width: min(720px, calc(100vw - 28px));
+      padding: 40px 26px 24px;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      background: var(--card);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+
+    .timer {
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      padding: 6px 0 0;
+    }
+
+    .state {
+      color: var(--muted-foreground);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .time {
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(70px, 20vw, 96px);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    /* Buttons */
+    .actions { display: grid; gap: 10px; justify-items: center; }
+
+    button {
+      font: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: calc(var(--radius) - 2px);
+      transition: background-color 0.15s, color 0.15s;
+    }
+
+    .primary {
+      width: 100%;
+      height: 44px;
+      border: 0;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .primary:hover { background: #e4e4e7; }
+
+    .secondary {
+      height: 36px;
+      padding: 0 16px;
+      border: 1px solid var(--input);
+      background: transparent;
+      color: var(--foreground);
+    }
+
+    .secondary:hover { background: var(--accent); }
+
+    /* Badges */
+    .badge {
+      position: absolute;
+      top: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--foreground);
+    }
+
+    .badge.streak { left: 16px; }
+    .badge.sync { right: 16px; color: var(--muted-foreground); font-weight: 500; }
+
+    .badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #4ade80;
+    }
+
+    .badge svg { width: 13px; height: 13px; }
+
+    /* Progress rows */
+    .week-pace { display: grid; gap: 12px; }
+
+    .pace-row {
+      display: grid;
+      grid-template-columns: 82px 1fr 82px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pace-label {
+      color: var(--muted-foreground);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .pace-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(250, 250, 250, 0.12);
+      overflow: hidden;
+    }
+
+    .pace-fill { height: 100%; border-radius: 999px; background: var(--primary); }
+    .pace-fill.past { background: #52525b; }
+
+    .pace-count {
+      font-size: 13px;
+      font-weight: 500;
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pace-count.past { color: var(--muted-foreground); }
+    .pace-group-end { margin-bottom: 8px; }
+
+    /* Heatmap */
+    .heatmap { display: grid; gap: 6px; }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: 44px repeat(24, minmax(0, 1fr));
+      gap: 3px;
+      align-items: center;
+    }
+
+    .day-label {
+      color: var(--muted-foreground);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .hour {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      border-radius: 2px;
+      background: var(--muted);
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--muted-foreground);
+    }
+
+    .hour.l1 { background: #3f3f46; color: #d4d4d8; }
+    .hour.l2 { background: #71717a; color: #fafafa; }
+    .hour.l3 { background: #d4d4d8; color: #18181b; }
+    .hour.l4 { background: #fafafa; color: #18181b; }
+
+    .hour-labels {
+      display: grid;
+      grid-template-columns: 44px repeat(24, minmax(0, 1fr));
+      color: var(--muted-foreground);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .hour-labels span { text-align: center; }
+    .hour-labels .label-12a { grid-column: 2; }
+    .hour-labels .label-6a { grid-column: 8; }
+    .hour-labels .label-12p { grid-column: 14; }
+    .hour-labels .label-6p { grid-column: 20; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="badge streak">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+      12 day streak
+    </div>
+    <div class="badge sync"><span class="dot"></span>Synced</div>
+
+    <section class="timer">
+      <div class="state">3 sessions today</div>
+      <div class="time">30:00</div>
+    </section>
+
+    <section class="actions">
+      <button class="primary" type="button">Start</button>
+      <button class="secondary" type="button">Undo</button>
+    </section>
+
+    <section class="week-pace">
+      <div class="pace-row">
+        <div class="pace-label">Today</div>
+        <div class="pace-bar"><div class="pace-fill" style="width:60%"></div></div>
+        <div class="pace-count">3 sessions</div>
+      </div>
+      <div class="pace-row pace-group-end">
+        <div class="pace-label">Yesterday</div>
+        <div class="pace-bar"><div class="pace-fill past" style="width:40%"></div></div>
+        <div class="pace-count past">2 sessions</div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Week</div>
+        <div class="pace-bar"><div class="pace-fill" style="width:76%"></div></div>
+        <div class="pace-count">19 sessions</div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Last week</div>
+        <div class="pace-bar"><div class="pace-fill past" style="width:64%"></div></div>
+        <div class="pace-count past">16 sessions</div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label">Last 4 weeks</div>
+        <div class="pace-bar"><div class="pace-fill past" style="width:55%"></div></div>
+        <div class="pace-count past">14 sessions</div>
+      </div>
+    </section>
+
+    <section class="heatmap">
+      <div class="day-grid" id="hourGrid"></div>
+      <div class="hour-labels" aria-hidden="true">
+        <span></span>
+        <span class="label-12a">12a</span>
+        <span class="label-6a">6a</span>
+        <span class="label-12p">12p</span>
+        <span class="label-6p">6p</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const grid = document.getElementById("hourGrid");
+    const days = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
+    const seed = [0,0,0,0,0,0,0,1,2,3,4,2,1,1,2,3,2,1,1,1,0,0,0,0];
+    days.forEach((day, dayIndex) => {
+      const label = document.createElement("div");
+      label.className = "day-label";
+      label.textContent = day;
+      grid.appendChild(label);
+      for (let hour = 0; hour < 24; hour += 1) {
+        const cell = document.createElement("div");
+        const level = Math.max(0, seed[hour] - ((dayIndex * 5 + hour) % 3));
+        cell.className = level > 0 ? `hour l${level}` : "hour";
+        if (level > 0) cell.textContent = level;
+        grid.appendChild(cell);
+      }
+    });
+  </script>
+</body>
+</html>

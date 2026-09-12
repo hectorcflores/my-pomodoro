@@ -6,6 +6,7 @@
   <title>Focus Sessions — Google style</title>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300..700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
   <style>
     :root {
       --ink: #1f1f1f;
@@ -175,6 +176,29 @@
 
     /* ---- sync status ---- */
 
+    .streak {
+      position: absolute;
+      top: 16px;
+      left: 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 13px 6px 10px;
+    }
+
+    .streak .material-symbols-outlined {
+      font-family: "Material Symbols Outlined";
+      font-size: 16px;
+      line-height: 1;
+      color: var(--ink-2);
+      font-variation-settings: "opsz" 20, "wght" 400, "FILL" 1, "GRAD" 0;
+    }
+
     .sync-status {
       position: absolute;
       top: 16px;
@@ -211,6 +235,7 @@
 </head>
 <body>
   <main class="app" aria-label="Focus session timer">
+    <div class="streak"><span class="material-symbols-outlined">local_fire_department</span>12 day streak</div>
     <section class="timer">
       <div class="state">3 sessions today</div>
       <div class="time">30:00</div>
