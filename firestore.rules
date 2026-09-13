@@ -112,6 +112,21 @@ service cloud.firestore {
       }
     }
 
+    // Card visibility: owner-only immutable hide/restore events.
+    match /my_anki/{uid}/visibility/{eventId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['id', 'cardId', 'hidden', 'at', 'createdAt'])
+        && request.resource.data.id == eventId
+        && request.resource.data.cardId is string
+        && request.resource.data.cardId.matches('^[a-f0-9]{16}$')
+        && request.resource.data.hidden is bool
+        && request.resource.data.at is int
+        && request.resource.data.at > 0
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
     // ---- Pomodoro (live) ----
     match /users/{uid}/focus_sessions/{sessionId} {
       allow read: if isOwner(uid);
