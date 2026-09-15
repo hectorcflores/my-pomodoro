@@ -1579,6 +1579,15 @@
       return true;
     }
 
+    // "Offline" is decided by what the network actually did, not by
+    // navigator.onLine: managed laptops with VPN or security agents report
+    // onLine=false while every request succeeds, and the app must not
+    // refuse to even try. A fetch that never reached a server throws a
+    // TypeError with no HTTP status.
+    function isNetworkError(error) {
+      return !navigator.onLine || Boolean(error && error.status == null && error.name === "TypeError");
+    }
+
     async function fsError(where, res) {
       let detail = "";
       try { detail = JSON.stringify(await res.json()).slice(0, 300); } catch { /* body unreadable */ }
@@ -1801,10 +1810,6 @@
         setSyncStatus(authState === "unavailable" ? "offline" : "local");
         return false;
       }
-      if (!navigator.onLine) {
-        setSyncStatus("offline");
-        return false;
-      }
       const now = Date.now();
       if (syncInFlight) return false;
       if (!force && (now < backoffUntil || now - lastSyncAt < SYNC_MIN_INTERVAL_MS)) return false;
@@ -1847,7 +1852,7 @@
           setSyncStatus("issue");
           setTimeout(() => syncSessions(), RATE_LIMIT_BACKOFF_MS + 1000);
         } else {
-          setSyncStatus(navigator.onLine ? "issue" : "offline");
+          setSyncStatus(isNetworkError(error) ? "offline" : "issue");
         }
         return false;
       } finally {
@@ -1862,10 +1867,6 @@
         setSyncStatus(authState === "unavailable" ? "offline" : "local");
         return;
       }
-      if (!navigator.onLine) {
-        setSyncStatus("offline");
-        return;
-      }
 
       setSyncStatus("syncing");
       const flush = await flushPending();
@@ -1877,7 +1878,7 @@
         backoffUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
         setSyncStatus("issue");
       } else {
-        setSyncStatus(navigator.onLine ? "issue" : "offline");
+        setSyncStatus(isNetworkError(flush.error) ? "offline" : "issue");
       }
     }
 
@@ -1903,7 +1904,7 @@
           setSyncStatus("synced");
         } else {
           console.warn(error);
-          setSyncStatus(navigator.onLine ? "issue" : "offline");
+          setSyncStatus(isNetworkError(error) ? "offline" : "issue");
         }
       }
     }
@@ -2131,10 +2132,6 @@
             setSyncStatus("local");
             return;
           }
-          if (!navigator.onLine) {
-            setSyncStatus("offline");
-            return;
-          }
           try {
             setSyncStatus("syncing");
             // The local cache belongs to whichever account last synced on
@@ -2152,7 +2149,7 @@
             await syncSessions(true);
           } catch (error) {
             console.warn(error);
-            setSyncStatus(navigator.onLine ? "issue" : "offline");
+            setSyncStatus(isNetworkError(error) ? "offline" : "issue");
           }
         });
       },
