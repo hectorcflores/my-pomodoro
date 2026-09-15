@@ -2006,6 +2006,7 @@
         const app = initializeApp(window.PomodoroSync.firebaseConfig);
         const instance = auth.getAuth(app);
         const provider = new auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
         auth.getRedirectResult(instance).catch((error) => console.warn(error));
         window.PomodoroSync.start({
           onAuthChange(callback) {
