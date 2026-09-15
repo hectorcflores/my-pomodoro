@@ -269,6 +269,45 @@
     /* Narrow screens: the account keeps its avatar, drops the name. */
     @media (max-width: 430px) { .account .nm { display: none; } .account { padding: 3px 4px; } }
 
+    /* ---- Account dialog: Google or email + password, and "set a
+       password" while signed in. The password route exists for managed
+       computers whose browser pins Google to a work account. ---- */
+    .auth-dialog {
+      width: min(360px, calc(100vw - 32px));
+      padding: 20px 20px 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--ink);
+    }
+    .auth-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+    .auth-dialog h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+    .auth-dialog p { margin: 0 0 12px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+    .auth-dialog form { display: grid; gap: 8px; margin-top: 10px; }
+    .auth-dialog input {
+      min-height: 38px; padding: 0 10px;
+      border: 1px solid var(--line); border-radius: 6px;
+      background: var(--bg); color: var(--ink);
+      font: inherit; font-size: 14px;
+    }
+    .auth-dialog input:focus { outline: 2px solid #52525b; outline-offset: 1px; }
+    .auth-dialog button { min-height: 38px; font-size: 13px; }
+    .auth-dialog .primary { background: var(--ink); color: #18181b; font-weight: 600; }
+    .auth-dialog .quiet { background: var(--chip); color: var(--ink); }
+    .auth-dialog .link {
+      min-height: 0; padding: 0; background: none; color: var(--muted);
+      font-size: 12px; text-decoration: underline; justify-self: start;
+    }
+    .auth-dialog .divider {
+      display: flex; align-items: center; gap: 10px; margin: 14px 0 2px;
+      font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .auth-dialog .divider::before, .auth-dialog .divider::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+    .auth-dialog .hint { min-height: 16px; margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+    .auth-dialog .hint[data-tone="issue"] { color: #f87171; }
+    .auth-dialog .hint[data-tone="ok"] { color: #4ade80; }
+    .auth-dialog .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; }
+
     .week-pace {
       display: grid;
       gap: 8px;
@@ -488,6 +527,37 @@
       <div class="sync-status" id="syncStatus" data-status="local" aria-live="polite">Local only</div>
       <button class="account out" id="accountBtn" type="button">Sign in</button>
     </div>
+
+    <dialog class="auth-dialog" id="authDialog" aria-label="Account">
+      <section id="authOut">
+        <h2>Sign in to sync</h2>
+        <p>Sessions follow your account across devices.</p>
+        <button class="primary" id="googleSignInBtn" type="button">Continue with Google</button>
+        <div class="divider">or</div>
+        <form id="passwordForm" novalidate>
+          <input id="passwordEmail" type="email" autocomplete="username" placeholder="you@gmail.com" spellcheck="false">
+          <input id="passwordInput" type="password" autocomplete="current-password" placeholder="password">
+          <button class="quiet" id="passwordSignInBtn" type="submit">Sign in with email</button>
+        </form>
+        <p class="hint" id="authOutHint"></p>
+        <p>No password yet? Set one from a device that is already signed in.</p>
+      </section>
+      <section id="authIn" hidden>
+        <h2>Signed in</h2>
+        <p id="authEmail"></p>
+        <form id="setPasswordForm" novalidate>
+          <input id="setPasswordInput" type="password" autocomplete="new-password" placeholder="new password (12+ characters)">
+          <input id="setPasswordConfirm" type="password" autocomplete="new-password" placeholder="repeat it">
+          <button class="quiet" id="setPasswordBtn" type="submit">Set or replace password</button>
+        </form>
+        <p class="hint" id="authInHint"></p>
+        <p>With a password you can sign in to this same account on a computer whose browser only allows a work Google account.</p>
+        <div class="row">
+          <button class="link" id="signOutBtn" type="button">Sign out on this device</button>
+          <button class="link" id="authCloseBtn" type="button">Close</button>
+        </div>
+      </section>
+    </dialog>
   </main>
 
   <script>
@@ -537,6 +607,23 @@
       skipBreakButton: document.querySelector("#skipBreakButton"),
       syncStatus: document.querySelector("#syncStatus"),
       accountBtn: document.querySelector("#accountBtn"),
+      authDialog: document.querySelector("#authDialog"),
+      authOut: document.querySelector("#authOut"),
+      authIn: document.querySelector("#authIn"),
+      authEmail: document.querySelector("#authEmail"),
+      googleSignInBtn: document.querySelector("#googleSignInBtn"),
+      passwordForm: document.querySelector("#passwordForm"),
+      passwordEmail: document.querySelector("#passwordEmail"),
+      passwordInput: document.querySelector("#passwordInput"),
+      passwordSignInBtn: document.querySelector("#passwordSignInBtn"),
+      authOutHint: document.querySelector("#authOutHint"),
+      setPasswordForm: document.querySelector("#setPasswordForm"),
+      setPasswordInput: document.querySelector("#setPasswordInput"),
+      setPasswordConfirm: document.querySelector("#setPasswordConfirm"),
+      setPasswordBtn: document.querySelector("#setPasswordBtn"),
+      authInHint: document.querySelector("#authInHint"),
+      signOutBtn: document.querySelector("#signOutBtn"),
+      authCloseBtn: document.querySelector("#authCloseBtn"),
       hourGrid: document.querySelector("#hourGrid"),
       todayFill: document.querySelector("#todayFill"),
       todayCount: document.querySelector("#todayCount"),
@@ -560,7 +647,7 @@
     let state = loadState({ witness: false });
     let tick = null;
     let authUser = null;        // { uid, email, getToken() } once signed in
-    let authApi = null;         // { signIn, signOutUser } from the module script
+    let authApi = null;         // { signIn, setPassword, signOutUser } from the module script
     let authState = "loading";  // loading | out | in | unavailable
     let audioContext = null;
     // local | syncing | synced | pending | offline | issue
@@ -840,7 +927,7 @@
       if (authState === "in") {
         const email = (authUser && authUser.email) || "Signed in";
         const name = email.split("@")[0];
-        button.title = `${email} — sign out`;
+        button.title = `${email} — account`;
         const avatar = document.createElement("span");
         avatar.className = "av";
         avatar.textContent = name.slice(0, 1).toUpperCase();
@@ -1823,12 +1910,123 @@
 
     els.mainButton.addEventListener("click", handleMainAction);
     // Identity lives on the account button; the sync pill is display-only.
-    els.accountBtn.addEventListener("click", async () => {
-      if (authState === "out") {
-        try { await authApi.signIn(); } catch (error) { console.warn(error); }
-      } else if (authState === "in" && confirm("Sign out of sync on this device?")) {
-        authApi.signOutUser();
+    els.accountBtn.addEventListener("click", () => {
+      if (authState === "out" || authState === "in") openAuthDialog();
+    });
+
+    // ---- Account dialog ----
+    // Two ways into the same account: Google, or email + password. The
+    // password is set here while signed in, so both methods resolve to the
+    // same uid and the same data. Plain-words error copy lives here; the
+    // module script only throws Firebase's codes.
+    function authErrorText(error, fallback) {
+      const code = (error && error.code) || "";
+      if (["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-email"].includes(code)) {
+        return "That email + password didn't work. Set the password from a signed-in device first.";
       }
+      if (code === "auth/too-many-requests") return "Too many tries. Wait a few minutes and try again.";
+      if (code === "auth/network-request-failed") return "No connection. Try again when you're online.";
+      if (code === "auth/operation-not-allowed") return "Email sign-in isn't enabled for this project.";
+      if (code === "auth/requires-recent-login") return "For safety, sign out, sign back in, and set the password right away.";
+      if (code === "auth/weak-password") return "Use at least 12 characters.";
+      return fallback;
+    }
+
+    function setHint(element, text, tone) {
+      element.textContent = text;
+      if (tone) element.dataset.tone = tone;
+      else delete element.dataset.tone;
+    }
+
+    function openAuthDialog() {
+      const dialog = els.authDialog;
+      const signedIn = authState === "in";
+      els.authOut.hidden = signedIn;
+      els.authIn.hidden = !signedIn;
+      els.authEmail.textContent = signedIn ? ((authUser && authUser.email) || "Signed in") : "";
+      setHint(els.authOutHint, "");
+      setHint(els.authInHint, "");
+      els.passwordInput.value = "";
+      els.setPasswordInput.value = "";
+      els.setPasswordConfirm.value = "";
+      if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
+      const first = signedIn ? els.setPasswordInput : els.passwordEmail;
+      if (typeof first.focus === "function") first.focus();
+    }
+
+    function closeAuthDialog() {
+      const dialog = els.authDialog;
+      if (typeof dialog.close === "function" && dialog.open) dialog.close();
+    }
+
+    els.authCloseBtn.addEventListener("click", closeAuthDialog);
+
+    els.googleSignInBtn.addEventListener("click", async () => {
+      setHint(els.authOutHint, "");
+      try {
+        await authApi.signIn({ method: "google" });
+      } catch (error) {
+        console.warn(error);
+        setHint(els.authOutHint, authErrorText(error, "Google sign-in didn't complete. Try again."), "issue");
+      }
+    });
+
+    els.passwordForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = (els.passwordEmail.value || "").trim();
+      const password = els.passwordInput.value || "";
+      if (!email || !password) {
+        setHint(els.authOutHint, "Enter your email and password.", "issue");
+        return;
+      }
+      setHint(els.authOutHint, "");
+      els.passwordSignInBtn.disabled = true;
+      try {
+        await authApi.signIn({ method: "password", email, password });
+        els.passwordInput.value = "";
+      } catch (error) {
+        console.warn(error);
+        setHint(els.authOutHint, authErrorText(error, "Sign-in didn't complete. Try again."), "issue");
+      } finally {
+        els.passwordSignInBtn.disabled = false;
+      }
+    });
+
+    els.setPasswordForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const password = els.setPasswordInput.value || "";
+      const confirmValue = els.setPasswordConfirm.value || "";
+      if (!authUser || !authUser.email) {
+        setHint(els.authInHint, "This account has no email address to attach a password to.", "issue");
+        return;
+      }
+      if (password.length < 12) {
+        setHint(els.authInHint, "Use at least 12 characters.", "issue");
+        return;
+      }
+      if (password !== confirmValue) {
+        setHint(els.authInHint, "The two passwords don't match.", "issue");
+        return;
+      }
+      setHint(els.authInHint, "");
+      els.setPasswordBtn.disabled = true;
+      try {
+        await authApi.setPassword(password);
+        els.setPasswordInput.value = "";
+        els.setPasswordConfirm.value = "";
+        setHint(els.authInHint, `Password set. Elsewhere, sign in with ${authUser.email} + this password.`, "ok");
+      } catch (error) {
+        console.warn(error);
+        setHint(els.authInHint, authErrorText(error, "Couldn't set the password. Try again."), "issue");
+      } finally {
+        els.setPasswordBtn.disabled = false;
+      }
+    });
+
+    els.signOutBtn.addEventListener("click", () => {
+      if (!confirm("Sign out of sync on this device?")) return;
+      closeAuthDialog();
+      authApi.signOutUser();
     });
     els.undoButton.addEventListener("click", undoLast);
     els.paceTab.addEventListener("click", () => selectPanel("pace"));
@@ -1928,6 +2126,7 @@
           authUser = user;
           authState = user ? "in" : "out";
           renderAccount();
+          closeAuthDialog();
           if (!user) {
             setSyncStatus("local");
             return;
@@ -2014,7 +2213,11 @@
               callback(user ? { uid: user.uid, email: user.email, getToken: () => user.getIdToken() } : null);
             });
           },
-          async signIn() {
+          async signIn(options = {}) {
+            if (options.method === "password") {
+              await auth.signInWithEmailAndPassword(instance, options.email, options.password);
+              return;
+            }
             try {
               await auth.signInWithPopup(instance, provider);
             } catch (error) {
@@ -2025,6 +2228,20 @@
                 "auth/operation-not-supported-in-this-environment"
               ];
               if (popupIssues.includes(error.code)) await auth.signInWithRedirect(instance, provider);
+              else throw error;
+            }
+          },
+          // Attach (or replace) a password on the CURRENT account — email
+          // taken from the signed-in user, never typed — so both sign-in
+          // methods resolve to the same uid and the same data.
+          async setPassword(password) {
+            const user = instance.currentUser;
+            if (!user || !user.email) throw new Error("No signed-in account with an email");
+            const credential = auth.EmailAuthProvider.credential(user.email, password);
+            try {
+              await auth.linkWithCredential(user, credential);
+            } catch (error) {
+              if (error && error.code === "auth/provider-already-linked") await auth.updatePassword(user, password);
               else throw error;
             }
           },
