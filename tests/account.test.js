@@ -97,3 +97,19 @@ test("the dialog routes email + password and set-password through the auth servi
   assert.deepEqual(a.authCalls[2], { op: "setPassword", password: "correct horse battery" });
   assert.match(a.text("#authInHint"), /^Password set\./);
 });
+
+// Managed laptops (VPN clients, security agents) make Chrome report
+// navigator.onLine=false while every request succeeds. The pill must reflect
+// what the network actually did, and the app must still try.
+test("a browser that wrongly claims to be offline still syncs", async () => {
+  const h = new Harness();
+  const a = await h.open("A", { search: "?seconds=60" });
+  a.run("navigator.onLine = false");
+  await a.signIn("uid-hector", "hector@gmail.com");
+  await h.flush();
+  assert.match(a.text("#syncStatus"), /^Synced/);
+  await a.click("#mainButton");
+  await h.advance(60 * 1000);
+  assert.deepEqual(h.firestore.liveSessions("uid-hector"), ids(a.state.sessions));
+  assert.equal(h.pending().length, 0);
+});
