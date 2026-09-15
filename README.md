@@ -16,9 +16,16 @@ http://localhost:8765
 
 ## Sync Setup
 
-Open the app and click the sync pill (top of the page) → **Sign in with
-Google**. That's the whole setup, once per device. Sessions completed while
-signed out stay local and are pushed to the account on the next sign-in.
+Open the app and click **Sign in** (top right) → **Continue with Google**.
+That's the whole setup, once per device. Sessions completed while signed out
+stay local and are pushed to the account on the next sign-in.
+
+On a computer whose browser only allows a work Google account (managed
+Chrome), use email + password instead: on a device that is already signed
+in, click the account chip → **Set or replace password**; then on the
+restricted computer, **Sign in** → **Sign in with email** with the same
+address. Both routes land on the same account and the same data. Forgot the
+password? Set a new one from any signed-in device.
 
 Data lives in Firestore at `users/{uid}/focus_sessions`, in the same Firebase
 project as my-reading-list and brain-gym; `firestore.rules` in this repo is

@@ -323,6 +323,7 @@ class Instance {
       __clock: harness.clock,
       __setAuthCallback: (callback) => { sandbox.__authCallback = callback; },
       __authCallback: null,
+      __authCalls: [],
       ...timers
     };
     sandbox.window = sandbox;
@@ -346,7 +347,8 @@ class Instance {
     // Inject auth through the app's own seam, as the module script does.
     this.run(`window.PomodoroSync.start({
       onAuthChange(callback) { __setAuthCallback(callback); },
-      async signIn() {},
+      async signIn(options) { __authCalls.push({ op: "signIn", ...(options || {}) }); },
+      async setPassword(password) { __authCalls.push({ op: "setPassword", password }); },
       signOutUser() { if (__authCallback) __authCallback(null); }
     })`);
   }
@@ -399,6 +401,8 @@ class Instance {
     callback({ uid, email, getToken: async () => "token-" + uid });
     await drainMicrotasks(20);
   }
+  // What the app asked of the (fake) auth service: { op: "signIn" | "setPassword", ... }.
+  get authCalls() { return Array.from(this.run("__authCalls")).map((c) => ({ ...c })); }
   async signOut() {
     const callback = this.run("__authCallback");
     callback(null);
