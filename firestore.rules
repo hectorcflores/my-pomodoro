@@ -127,6 +127,22 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---- My Anki Kindle imports ----
+    // The signed-in owner can create immutable batches from the Kindle
+    // extension. A batch cannot be edited or read by another account.
+    match /my_anki/{uid}/imports/{importId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['source', 'collectedAt', 'books', 'createdAt'])
+        && request.resource.data.source == 'my-anki-kindle-extension'
+        && request.resource.data.collectedAt is timestamp
+        && request.resource.data.books is list
+        && request.resource.data.books.size() > 0
+        && request.resource.data.books.size() <= 10
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
     // ---- Pomodoro (live) ----
     match /users/{uid}/focus_sessions/{sessionId} {
       allow read: if isOwner(uid);
